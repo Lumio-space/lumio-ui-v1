@@ -1,0 +1,13 @@
+# Dependencies
+node_modules/
+
+# Build output
+.next/
+
+# Auto-generated
+next-env.d.ts
+package-lock.json
+
+# Config files where formatting doesn't matter
+*.md
+public/

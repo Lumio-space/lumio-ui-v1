@@ -1,15 +1,32 @@
+/**
+ * Route constants — App Router paths
+ *
+ * Updated from original scaffold:
+ *   - /auth/login → /login  (route group (auth) doesn't add prefix)
+ *   - /dashboard/students → /students  (flat under (dashboard) group)
+ *
+ * Import these everywhere instead of hardcoding strings so a route
+ * rename is a one-line change.
+ */
+
 export const ROUTES = {
-  LOGIN: "/auth/login",
+  // Public / auth
+  ROOT:        '/',
+  LOGIN:       '/login',
+  ONBOARDING:  '/onboarding',
 
-  ONBOARDING: "/auth/onboarding",
+  // Dashboard
+  DASHBOARD:    '/dashboard',
+  STUDENTS:     '/students',
+  TEACHERS:     '/teachers',
+  CLASSES:      '/classes',
+  ATTENDANCE:   '/attendance',
+  RESULTS:      '/results',
+  TIMETABLE:    '/timetable',
+  PARENTS:      '/parents',
+  ROLES:        '/roles',
+  ANNOUNCEMENTS: '/announcements',
+  SETTINGS:     '/settings',
+} as const;
 
-  DASHBOARD: "/dashboard",
-
-  STUDENTS: "/dashboard/students",
-
-  TEACHERS: "/dashboard/teachers",
-
-  ATTENDANCE: "/dashboard/attendance",
-
-  SETTINGS: "/dashboard/settings",
-};
+export type AppRoute = (typeof ROUTES)[keyof typeof ROUTES];
