@@ -1,0 +1,76 @@
+/**
+ * Permissions Configuration
+ *
+ * Defines which roles have access to which features.
+ * Scaffolded for Phase 5 full RBAC implementation.
+ *
+ * Usage:
+ *   import { hasPermission } from '@/config/permissions';
+ *   if (hasPermission(userRole, 'MANAGE_ROLES')) { ... }
+ */
+
+import type { Role } from '@/types/auth.types';
+
+export type Permission =
+  | 'VIEW_DASHBOARD'
+  | 'VIEW_STUDENTS'
+  | 'MANAGE_STUDENTS'
+  | 'VIEW_TEACHERS'
+  | 'MANAGE_TEACHERS'
+  | 'VIEW_CLASSES'
+  | 'MANAGE_CLASSES'
+  | 'VIEW_ATTENDANCE'
+  | 'MANAGE_ATTENDANCE'
+  | 'VIEW_RESULTS'
+  | 'MANAGE_RESULTS'
+  | 'VIEW_TIMETABLE'
+  | 'MANAGE_TIMETABLE'
+  | 'VIEW_PARENTS'
+  | 'MANAGE_PARENTS'
+  | 'VIEW_ANNOUNCEMENTS'
+  | 'MANAGE_ANNOUNCEMENTS'
+  | 'VIEW_SETTINGS'
+  | 'MANAGE_SETTINGS'
+  | 'MANAGE_ROLES'
+  | 'SUPER_ADMIN';
+
+const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
+  SUPER_ADMIN: [
+    'SUPER_ADMIN',
+    'VIEW_DASHBOARD', 'VIEW_STUDENTS', 'MANAGE_STUDENTS',
+    'VIEW_TEACHERS', 'MANAGE_TEACHERS', 'VIEW_CLASSES', 'MANAGE_CLASSES',
+    'VIEW_ATTENDANCE', 'MANAGE_ATTENDANCE', 'VIEW_RESULTS', 'MANAGE_RESULTS',
+    'VIEW_TIMETABLE', 'MANAGE_TIMETABLE', 'VIEW_PARENTS', 'MANAGE_PARENTS',
+    'VIEW_ANNOUNCEMENTS', 'MANAGE_ANNOUNCEMENTS', 'VIEW_SETTINGS',
+    'MANAGE_SETTINGS', 'MANAGE_ROLES',
+  ],
+  SCHOOL_ADMIN: [
+    'VIEW_DASHBOARD', 'VIEW_STUDENTS', 'MANAGE_STUDENTS',
+    'VIEW_TEACHERS', 'MANAGE_TEACHERS', 'VIEW_CLASSES', 'MANAGE_CLASSES',
+    'VIEW_ATTENDANCE', 'MANAGE_ATTENDANCE', 'VIEW_RESULTS', 'MANAGE_RESULTS',
+    'VIEW_TIMETABLE', 'MANAGE_TIMETABLE', 'VIEW_PARENTS', 'MANAGE_PARENTS',
+    'VIEW_ANNOUNCEMENTS', 'MANAGE_ANNOUNCEMENTS', 'VIEW_SETTINGS',
+    'MANAGE_SETTINGS', 'MANAGE_ROLES',
+  ],
+  TEACHER: [
+    'VIEW_DASHBOARD', 'VIEW_STUDENTS', 'VIEW_CLASSES',
+    'VIEW_ATTENDANCE', 'MANAGE_ATTENDANCE', 'VIEW_RESULTS', 'MANAGE_RESULTS',
+    'VIEW_TIMETABLE', 'VIEW_PARENTS', 'VIEW_ANNOUNCEMENTS', 'VIEW_SETTINGS',
+  ],
+  STUDENT: [
+    'VIEW_DASHBOARD', 'VIEW_RESULTS', 'VIEW_TIMETABLE',
+    'VIEW_ATTENDANCE', 'VIEW_ANNOUNCEMENTS',
+  ],
+  PARENT: [
+    'VIEW_DASHBOARD', 'VIEW_ATTENDANCE', 'VIEW_RESULTS',
+    'VIEW_TIMETABLE', 'VIEW_ANNOUNCEMENTS', 'VIEW_SETTINGS',
+  ],
+};
+
+export function hasPermission(role: Role, permission: Permission): boolean {
+  return ROLE_PERMISSIONS[role]?.includes(permission) ?? false;
+}
+
+export function getPermissions(role: Role): Permission[] {
+  return ROLE_PERMISSIONS[role] ?? [];
+}
