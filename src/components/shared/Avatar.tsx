@@ -1,13 +1,3 @@
-/**
- * Avatar — shared business component
- *
- * Migrated from components/ui/Avatar.tsx.
- * Kept separate from shadcn's avatar primitive so we can add
- * Lumio-specific features (deterministic palette, initials logic).
- *
- * React 19: ref is now a regular prop — no forwardRef needed.
- */
-
 import { cn } from '@/lib/utils';
 
 interface AvatarProps {

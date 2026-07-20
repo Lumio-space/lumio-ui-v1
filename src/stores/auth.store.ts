@@ -1,44 +1,51 @@
-/**
- * Auth Store — Zustand (with persistence)
- *
- * Holds client-side auth state: the active role for the role switcher
- * (dev tool), and will store session tokens once next-auth is wired
- * in Phase 2.
- *
- * This replaces RoleContext from the original project.
- * The `persist` middleware writes to localStorage under 'lumio-auth'.
- */
+import { create } from 'zustand'
+import { persist, createJSONStorage } from 'zustand/middleware'
+import type { LegacyRole } from '@/types/auth.types'
 
-import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
-import type { LegacyRole } from '@/types/auth.types';
+const safeStorage = {
+  getItem: () => null,
+  setItem: () => undefined,
+  removeItem: () => undefined,
+}
+
+interface AuthUser {
+  name:  string
+  email: string
+  role?: string
+}
 
 interface AuthState {
-  /**
-   * Active role for the dev role-switcher.
-   * Phase 2 will replace this with the real session user role.
-   */
-  role: LegacyRole;
-  setRole: (role: LegacyRole) => void;
-
-  /** Whether the user is authenticated (will be derived from session in Phase 2) */
-  isAuthenticated: boolean;
-  setAuthenticated: (value: boolean) => void;
+  role:             LegacyRole
+  setRole:          (role: LegacyRole) => void
+  isAuthenticated:  boolean
+  setAuthenticated: (value: boolean) => void
+  /** Populated by useLogin / OnboardingWizard on completion; read by Topbar. */
+  user:             AuthUser | null
+  setUser:          (user: AuthUser | null) => void
+  clearUser:        () => void
 }
 
 export const useAuthStore = create<AuthState>()(
   persist(
     (set) => ({
-      role:    'admin',
-      setRole: (role) => set({ role }),
-
-      isAuthenticated:    false,
-      setAuthenticated:   (value) => set({ isAuthenticated: value }),
+      role:             'admin',
+      setRole:          (role) => set({ role }),
+      isAuthenticated:  false,
+      setAuthenticated: (value) => set({ isAuthenticated: value }),
+      user:             null,
+      setUser:          (user) => set({ user }),
+      clearUser:        () => set({ user: null }),
     }),
     {
       name: 'lumio-auth',
-      // Only persist the role — don't persist loading states
-      partialize: (state) => ({ role: state.role }),
+      partialize: (state) => ({ role: state.role, user: state.user }),
+      storage: createJSONStorage(() => {
+        if (typeof window === 'undefined' || !window.localStorage) {
+          return safeStorage
+        }
+
+        return window.localStorage
+      }),
     }
   )
-);
+)

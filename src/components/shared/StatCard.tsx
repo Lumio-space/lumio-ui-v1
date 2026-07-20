@@ -8,6 +8,7 @@
 
 'use client';
 
+import type { ReactNode } from 'react';
 import { ArrowDownRightIcon, ArrowUpRightIcon } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
@@ -15,7 +16,7 @@ import { cn } from '@/lib/utils';
 interface StatCardProps {
   label: string;
   value: string | number;
-  icon: React.ReactNode;
+  icon: ReactNode;
   tone?: 'indigo' | 'purple' | 'gold' | 'green';
   trend?: { value: string; up: boolean };
   /** Stagger delay index */

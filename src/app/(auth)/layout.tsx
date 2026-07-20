@@ -1,12 +1,6 @@
-/**
- * Auth Group Layout — (auth)
- *
- * Wraps /login and /onboarding. No sidebar or topbar here —
- * just a full-screen canvas background.
- * Route group (auth) does NOT add "auth" to the URL.
- */
+import type { ReactNode } from 'react';
 
-export default function AuthLayout({ children }: { children: React.ReactNode }) {
+export default function AuthLayout({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-screen bg-canvas">
       {children}

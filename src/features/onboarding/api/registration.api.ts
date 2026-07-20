@@ -1,0 +1,91 @@
+/**
+ * Registration API
+ *
+ * All onboarding registration endpoints, implemented with the shared
+ * Axios instance. The `x-draft-token` header is attached automatically
+ * by the request interceptor — callers do not pass it manually.
+ *
+ * Endpoints
+ * ─────────────────────────────────────────────────────────────────
+ * POST /registration/drafts                        → createDraft
+ * POST /registration/drafts/steps/school-info      → saveSchoolInfo
+ * POST /registration/drafts/steps/institution-info → saveInstitutionInfo
+ * POST /registration/drafts/branding/signature     → requestBrandingSignature
+ * POST /registration/drafts/steps/branding         → saveBranding
+ * POST /registration/drafts/steps/academic-settings → saveAcademicSettings
+ * POST /registration/drafts/steps/administrators   → saveAdministrators
+ * GET  /registration/drafts                        → getDraft
+ * POST /registration/drafts/complete               → completeRegistration
+ */
+
+import { apiClient } from '@/lib/api/axios';
+import type {
+  CreateDraftResponse,
+  GetDraftResponse,
+  SchoolInfoPayload,
+  InstitutionInfoPayload,
+  BrandingSignatureResponse,
+  BrandingPayload,
+  AcademicSettingsPayload,
+  AdministratorsPayload,
+  CompleteRegistrationResponse,
+} from '../types';
+
+export async function createDraft(): Promise<CreateDraftResponse> {
+  const response = await apiClient.post<CreateDraftResponse>('/registration/drafts');
+  return response.data;
+}
+
+export async function saveSchoolInfo(payload: SchoolInfoPayload): Promise<void> {
+  await apiClient.post('/registration/drafts/steps/school-info', payload);
+}
+
+export async function saveInstitutionInfo(payload: InstitutionInfoPayload): Promise<void> {
+  await apiClient.post('/registration/drafts/steps/institution-info', payload);
+}
+
+/**
+ * Request Cloudinary-signed upload parameters.
+ * Requires x-draft-token (attached by the request interceptor).
+ */
+export async function requestBrandingSignature(): Promise<BrandingSignatureResponse> {
+  const response = await apiClient.post<BrandingSignatureResponse>(
+    '/registration/drafts/branding/signature',
+  );
+  return response.data;
+}
+
+/**
+ * Save branding metadata to the backend after a successful Cloudinary upload.
+ * Requires x-draft-token (attached by the request interceptor).
+ *
+ * The backend expects camelCase field names (publicId, secureUrl).
+ */
+export async function saveBranding(payload: BrandingPayload): Promise<void> {
+  await apiClient.post('/registration/drafts/steps/branding', payload);
+}
+
+export async function saveAcademicSettings(payload: AcademicSettingsPayload): Promise<void> {
+  await apiClient.post('/registration/drafts/steps/academic-settings', payload);
+}
+
+export async function saveAdministrators(payload: AdministratorsPayload): Promise<void> {
+  await apiClient.post('/registration/drafts/steps/administrators', payload);
+}
+
+/**
+ * Retrieve the current draft state from the backend.
+ * Used by the resume flow to restore the user to their last step.
+ * Requires x-draft-token (attached by the request interceptor).
+ */
+export async function getDraft(): Promise<GetDraftResponse> {
+  const response = await apiClient.get<GetDraftResponse>('/registration/drafts');
+  return response.data;
+}
+
+export async function completeRegistration(): Promise<CompleteRegistrationResponse> {
+  const response = await apiClient.post<CompleteRegistrationResponse>(
+    '/registration/drafts/complete',
+  );
+  return response.data;
+}

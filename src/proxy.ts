@@ -1,46 +1,44 @@
-/** Proxy - auth route protection **/
-
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
 /** Routes that require authentication */
 const PROTECTED_PREFIXES = ['/dashboard', '/students', '/teachers', '/classes',
-    '/attendance', '/results', '/timetable', '/parents', '/roles',
-    '/announcements', '/settings'];
+  '/attendance', '/results', '/timetable', '/parents', '/roles',
+  '/announcements', '/settings'];
 
 /** Routes only accessible when NOT authenticated */
 const AUTH_ONLY_PREFIXES = ['/login', '/onboarding'];
 
 export function proxy(req: NextRequest) {
-    const { pathname } = req.nextUrl;
+  const { pathname } = req.nextUrl;
 
-    // Phase 2: replace with next-auth getToken()
-    const token = req.cookies.get('token')?.value;
+  // Phase 2: replace with next-auth getToken()
+  const token = req.cookies.get('token')?.value;
 
-    const isProtected = PROTECTED_PREFIXES.some((p) => pathname.startsWith(p));
-    const isAuthOnly  = AUTH_ONLY_PREFIXES.some((p) => pathname.startsWith(p));
+  const isProtected = PROTECTED_PREFIXES.some((p) => pathname.startsWith(p));
+  const isAuthOnly  = AUTH_ONLY_PREFIXES.some((p) => pathname.startsWith(p));
 
-    // Unauthenticated user trying to access a protected page → login
-    if (isProtected && !token) {
-        const loginUrl = new URL('/login', req.url);
-        loginUrl.searchParams.set('callbackUrl', pathname);
-        return NextResponse.redirect(loginUrl);
-    }
+  // Unauthenticated user trying to access a protected page → login
+  if (isProtected && !token) {
+    const loginUrl = new URL('/login', req.url);
+    loginUrl.searchParams.set('callbackUrl', pathname);
+    return NextResponse.redirect(loginUrl);
+  }
 
-    // Authenticated user trying to access login/onboarding → dashboard
-    if (isAuthOnly && token) {
-        return NextResponse.redirect(new URL('/dashboard', req.url));
-    }
+  // Authenticated user trying to access login/onboarding → dashboard
+  if (isAuthOnly && token) {
+    return NextResponse.redirect(new URL('/dashboard', req.url));
+  }
 
-    return NextResponse.next();
+  return NextResponse.next();
 }
 
 /**
- * Matcher: run proxy only on app routes.
+ * Matcher: run middleware only on app routes.
  * Explicitly excludes static assets, _next internals, and the API.
  */
 export const config = {
-    matcher: [
-        '/((?!_next/static|_next/image|favicon\\.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
-    ],
+  matcher: [
+    '/((?!_next/static|_next/image|favicon\\.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+  ],
 };

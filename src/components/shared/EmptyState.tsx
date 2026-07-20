@@ -1,17 +1,11 @@
-/**
- * EmptyState — shared business component
- *
- * Used when a data table or list has no results.
- * Migrated from components/ui/EmptyState.tsx.
- */
-
+import type { ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 
 interface EmptyStateProps {
-  icon: React.ReactNode;
+  icon: ReactNode;
   title: string;
   description?: string;
-  action?: React.ReactNode;
+  action?: ReactNode;
   className?: string;
 }
 

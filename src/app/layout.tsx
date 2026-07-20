@@ -11,19 +11,20 @@
  */
 
 import type { Metadata } from 'next';
+import type { ReactNode } from 'react';
 import { Providers } from '@/providers';
 import '@/index.css';
 
 export const metadata: Metadata = {
   title: {
     template: '%s | Lumio',
-    default:  'Lumio — School Management System',
+    default:  'Lumio School Management System',
   },
   description: 'The operating system for modern schools. Run admissions, attendance, academics and communication from a single premium platform.',
   icons: { icon: '/favicon.ico' },
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
       <body className="font-sans antialiased">
