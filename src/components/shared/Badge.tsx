@@ -1,16 +1,9 @@
-/**
- * Badge — shared business component
- *
- * Lumio-specific tones on top of the semantic badge concept.
- * Not to be confused with shadcn's /ui/badge — that one handles
- * generic variants; this one is purpose-built for Lumio statuses.
- */
-
+import { HTMLAttributes } from 'react';
 import { cn } from '@/lib/utils';
 
 type BadgeTone = 'indigo' | 'purple' | 'gold' | 'green' | 'red' | 'slate' | 'blue';
 
-interface BadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
+interface BadgeProps extends HTMLAttributes<HTMLSpanElement> {
   tone?: BadgeTone;
   dot?: boolean;
 }

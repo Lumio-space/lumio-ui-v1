@@ -5,9 +5,10 @@
  * Used in attendance cards, result indicators, etc.
  */
 
+import type { ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 
-/* ─── Progress bar ──────────────────────────────────────── */
+/* Progress bar  */
 
 interface ProgressProps {
   value: number; // 0–100
@@ -48,7 +49,7 @@ export function Progress({ value, tone = 'purple', size = 'md', className, label
   );
 }
 
-/* ─── Progress ring (SVG donut) ─────────────────────────── */
+/*  Progress ring (SVG donut) */
 
 interface RingProps {
   value: number;
@@ -56,7 +57,7 @@ interface RingProps {
   stroke?: number;
   tone?: string;
   trackTone?: string;
-  children?: React.ReactNode;
+  children?: ReactNode;
 }
 
 export function ProgressRing({

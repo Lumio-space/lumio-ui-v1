@@ -1,3 +1,4 @@
+import Image from 'next/image';
 import { LUMIO_LOGO } from '@/lib/branding';
 import { cn } from '@/lib/utils';
 interface LogoProps {
@@ -15,9 +16,11 @@ export function Logo({ variant = 'dark', className, imgClassName }: LogoProps) {
                     className
                 )}>
 
-                <img
+                <Image
                     src={LUMIO_LOGO}
                     alt="Lumio"
+                    width={120}
+                    height={32}
                     className={cn('h-6 w-auto', imgClassName)} />
 
             </div>);
@@ -25,9 +28,11 @@ export function Logo({ variant = 'dark', className, imgClassName }: LogoProps) {
     }
     return (
         <div className={cn('inline-flex items-center', className)}>
-            <img
+            <Image
                 src={LUMIO_LOGO}
                 alt="Lumio"
+                width={140}
+                height={38}
                 className={cn('h-7 w-auto', imgClassName)} />
 
         </div>);

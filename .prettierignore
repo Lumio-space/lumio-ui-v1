@@ -3,9 +3,12 @@ node_modules/
 
 # Build output
 .next/
+out/
+dist/
 
 # Auto-generated
 next-env.d.ts
+*.lock
 package-lock.json
 
 # Config files where formatting doesn't matter

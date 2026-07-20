@@ -1,15 +1,3 @@
-/**
- * Sidebar — layout component
- *
- * Migrated from components/layout/Sidebar.tsx.
- *
- * Key changes from the React version:
- *   - NavLink (react-router) → Link (next/link) + usePathname()
- *   - Active state derived from usePathname() instead of NavLink's render prop
- *   - Role read from Zustand auth store (was React Context)
- *   - 'use client' required: framer-motion + usePathname + useAuthStore
- */
-
 'use client';
 
 import Link from 'next/link';
@@ -19,25 +7,42 @@ import { XIcon, SparklesIcon } from 'lucide-react';
 import { Logo } from '@/components/Logo';
 import { NAV_ITEMS } from '@/config/navigation';
 import { useAuthStore } from '@/stores/auth.store';
+import { useSchoolStore } from '@/stores/school.store';
 import { LEGACY_ROLE_LABELS } from '@/types/auth.types';
 import { cn } from '@/lib/utils';
 
 interface SidebarProps {
   mobileOpen: boolean;
-  onClose: () => void;
+  onClose:    () => void;
+}
+
+function getInitials(name: string | null): string {
+  if (!name) return 'SC';
+  return name
+    .split(' ')
+    .map((w) => w[0])
+    .filter(Boolean)
+    .slice(0, 2)
+    .join('')
+    .toUpperCase();
 }
 
 export function Sidebar({ mobileOpen, onClose }: SidebarProps) {
-  const pathname = usePathname();
-  const role     = useAuthStore((s) => s.role);
-  const items    = NAV_ITEMS.filter((i) => i.roles.includes(role));
+  const pathname   = usePathname();
+  const role       = useAuthStore((s) => s.role);
+  const logoDataUrl = useSchoolStore((s) => s.logoDataUrl);
+  const schoolName  = useSchoolStore((s) => s.schoolName);
+  const items      = NAV_ITEMS.filter((i) => i.roles.includes(role));
 
   const isActive = (href: string) =>
     pathname === href || pathname.startsWith(href + '/');
 
+  const displayName = schoolName ?? 'Your School';
+  const initials    = getInitials(schoolName);
+
   const content = (
     <div className="flex h-full flex-col bg-indigo-900">
-      {/* Logo header */}
+      {/* App logo header — always the Lumio product logo */}
       <div className="flex items-center justify-between px-5 pb-5 pt-6">
         <Logo variant="light" />
         <button
@@ -49,13 +54,24 @@ export function Sidebar({ mobileOpen, onClose }: SidebarProps) {
         </button>
       </div>
 
-      {/* School chip */}
+      {/* School chip — shows uploaded logo or initials, never Lumio logo */}
       <div className="mx-3 mb-4 flex items-center gap-3 rounded-xl bg-indigo-800/60 px-3 py-2.5 ring-1 ring-inset ring-indigo-700/50">
-        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gold-400 font-display text-sm font-extrabold text-indigo-900">
-          NV
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-lg">
+          {logoDataUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={logoDataUrl}
+              alt={displayName}
+              className="h-full w-full object-cover"
+            />
+          ) : (
+            <div className="flex h-full w-full items-center justify-center bg-gold-400 font-display text-sm font-extrabold text-indigo-900">
+              {initials}
+            </div>
+          )}
         </div>
         <div className="min-w-0">
-          <p className="truncate text-sm font-semibold text-white">Northvale Academy</p>
+          <p className="truncate text-sm font-semibold text-white">{displayName}</p>
           <p className="text-xs text-indigo-300">{LEGACY_ROLE_LABELS[role]} workspace</p>
         </div>
       </div>
@@ -90,7 +106,7 @@ export function Sidebar({ mobileOpen, onClose }: SidebarProps) {
         })}
       </nav>
 
-      {/* Upsell card */}
+      {/* Upsell */}
       <div className="m-3 rounded-2xl bg-indigo-800/70 p-4 ring-1 ring-inset ring-indigo-700/50">
         <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gold-400/20 text-gold-300">
           <SparklesIcon className="h-5 w-5" />
@@ -108,7 +124,7 @@ export function Sidebar({ mobileOpen, onClose }: SidebarProps) {
 
   return (
     <>
-      {/* Desktop sidebar */}
+      {/* Desktop */}
       <aside className="hidden lg:block lg:w-64 lg:shrink-0">
         <div className="fixed inset-y-0 left-0 w-64">{content}</div>
       </aside>
