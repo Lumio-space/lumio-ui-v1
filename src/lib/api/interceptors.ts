@@ -5,35 +5,35 @@
  *
  * ┌─────────────────────────────────────────────────────────────────┐
  * │ REQUEST interceptor                                             │
+ * │                                                                 │
  * │ Reads the draft token from the onboarding store and attaches   │
- * │ x-draft-token to every outgoing request.  Developers never     │
- * │ pass the token manually.                                        │
+ * │ x-draft-token to every outgoing request — EXCEPT the school-   │
+ * │ info endpoint, which creates the draft and must not carry a     │
+ * │ token (none exists at that point, and the backend would reject  │
+ * │ a token on that route even if one were sent).                   │
  * └─────────────────────────────────────────────────────────────────┘
  *
  * ┌─────────────────────────────────────────────────────────────────┐
- * │ RESPONSE interceptor — error normalisation + draft recovery     │
+ * │ RESPONSE interceptor — error normalisation + draft detection    │
  * │                                                                 │
  * │ For all errors:                                                 │
  * │   Normalises Axios errors into plain Error objects, surfacing   │
  * │   the backend's message field when available.                   │
  * │                                                                 │
- * │ For draft-related errors (expired / invalid / not found):       │
- * │   1. Clears the stored draft.                                   │
- * │   2. Creates a new draft via a direct axios call (avoids        │
- * │      re-entering this interceptor).                             │
- * │   3. Retries the original request exactly once with the new     │
- * │      x-draft-token.                                             │
+ * │ For draft-related errors (expired / invalid / not found)        │
+ * │ on registration endpoints (excluding school-info):              │
+ * │   Clears the persisted draft state and returns a clear error    │
+ * │   message asking the user to restart from step 1.              │
  * │                                                                 │
- * │ The _isRetry flag prevents infinite retry loops.               │
- * │ Draft creation itself is excluded from recovery to avoid        │
- * │ recursion.                                                      │
+ * │ No automatic draft creation on recovery — the backend no longer │
+ * │ provides a standalone draft-creation endpoint. The user must    │
+ * │ re-submit school info (step 1) to obtain a fresh draft token.  │
  * └─────────────────────────────────────────────────────────────────┘
  */
 
 import axios, { type InternalAxiosRequestConfig } from 'axios';
 import { apiClient }          from './axios';
 import { useOnboardingStore } from '@/stores/onboarding.store';
-import type { CreateDraftResponse } from '@/features/onboarding/types';
 
 /* ── Type augmentation — adds _isRetry to Axios request config ── */
 
@@ -44,19 +44,30 @@ declare module 'axios' {
   }
 }
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? '';
+/**
+ * The school-info endpoint MUST NOT receive x-draft-token.
+ * It is the step that creates the draft, so no token exists yet.
+ * The backend would reject the request if a token were present.
+ */
+const SCHOOL_INFO_URL = '/registration/drafts/steps/school-info';
 
-/* ── Request: attach x-draft-token when a draft is in progress ── */
+/* ── Request: attach x-draft-token, skip school-info ─────────── */
 
 apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
+  if (config.url === SCHOOL_INFO_URL) {
+    // Draft does not exist yet — never attach a token for this route.
+    return config;
+  }
+
   const draftToken = useOnboardingStore.getState().draftToken;
   if (draftToken) {
     config.headers['x-draft-token'] = draftToken;
   }
+
   return config;
 });
 
-/* ── Response: error normalisation + automatic draft recovery ─── */
+/* ── Response: error normalisation + draft-error detection ───── */
 
 apiClient.interceptors.response.use(
   (response) => response,
@@ -66,26 +77,24 @@ apiClient.interceptors.response.use(
       return Promise.reject(error);
     }
 
-    const config        = error.config;
-    const status        = error.response?.status;
-    const responseData  = error.response?.data as { message?: string } | undefined;
-    const backendMsg    = responseData?.message ?? '';
+    const config       = error.config;
+    const status       = error.response?.status;
+    const responseData = error.response?.data as { message?: string } | undefined;
+    const backendMsg   = responseData?.message ?? '';
 
     /* ── Draft-error detection ──────────────────────────────────
      *
-     * Conditions for attempting recovery:
-     *   • The request is a registration endpoint (not the draft-
-     *     creation endpoint itself, to avoid recursion).
-     *   • The request has not already been retried (_isRetry falsy).
-     *   • The error looks like a draft problem:
-     *       - HTTP 401 / 410 from a registration route
-     *       - Backend message that mentions draft + expired/invalid/not found
-     *       - Backend message that mentions expired/invalid + draft/token
+     * Conditions:
+     *   • The request is a registration endpoint other than school-info
+     *     (school-info creates the draft, so it can't have a draft error).
+     *   • The error indicates the draft is gone or invalid:
+     *       - HTTP 401 / 410
+     *       - Backend message mentioning draft + expired/invalid/not found
      */
     const isRegistrationEndpoint =
       typeof config?.url === 'string' &&
       config.url.startsWith('/registration/') &&
-      config.url !== '/registration/drafts';   // exclude draft creation
+      config.url !== SCHOOL_INFO_URL;
 
     const isDraftRelatedError =
       isRegistrationEndpoint &&
@@ -95,58 +104,26 @@ apiClient.interceptors.response.use(
        /draft.*(expired|invalid|not found)/i.test(backendMsg) ||
        /(expired|invalid).*(draft|token)/i.test(backendMsg));
 
-    if (isDraftRelatedError && config) {
-      const store = useOnboardingStore.getState();
-      store.clearDraft();
+    if (isDraftRelatedError) {
+      /*
+       * Clear the stale draft from the persisted store so the wizard
+       * can detect the reset and return the user to step 1.
+       *
+       * No automatic recovery is possible here: the backend no longer
+       * provides a standalone draft-creation endpoint. A fresh draft
+       * is created only by submitting school info (step 1).
+       */
+      useOnboardingStore.getState().clearDraft();
 
-      try {
-        /*
-         * Use raw axios (not apiClient) for draft creation to avoid
-         * re-entering this interceptor. A fresh instance with explicit
-         * headers is semantically equivalent to a "bare" HTTP call.
-         */
-        const createResponse = await axios.post<CreateDraftResponse>(
-          `${API_URL}/registration/drafts`,
-          undefined,
-          {
-            headers: { 'Content-Type': 'application/json' },
-            timeout: 30_000,
-          },
-        );
-
-        const { draftToken, currentStep } = createResponse.data;
-        store.setDraft(draftToken, currentStep);
-
-        /*
-         * Retry the original request exactly once.
-         * _isRetry prevents this path from being entered again.
-         * The request interceptor will read the new token from the store
-         * and attach it automatically.
-         */
-        const retryConfig: InternalAxiosRequestConfig = {
-          ...config,
-          _isRetry: true,
-        };
-
-        return apiClient.request(retryConfig);
-
-      } catch {
-        /*
-         * Only the draft-creation axios.post can throw here.
-         * If apiClient.request(retryConfig) fails, its rejection
-         * propagates naturally through the Promise chain without
-         * being caught here (because we return, not await, it).
-         */
-        return Promise.reject(
-          new Error(
-            'Your registration session has expired and could not be recovered. ' +
-            'Please refresh the page to start again.',
-          ),
-        );
-      }
+      return Promise.reject(
+        new Error(
+          'Your registration session has expired. ' +
+          'Please go back to step 1 to start a new registration.',
+        ),
+      );
     }
 
-    // Standard error normalisation 
+    /* ── Standard error normalisation ────────────────────────── */
 
     const message =
       backendMsg ||

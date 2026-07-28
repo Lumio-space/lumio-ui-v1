@@ -3,66 +3,52 @@
 /**
  * useInitializeDraft
  *
- * The single entry-point for the registration draft lifecycle.
- * Called once by OnboardingWizard on mount.
+ * Handles the registration draft lifecycle on wizard mount.
  *
- * Behaviour on every call
- * ───────────────────────
+ * With the new backend contract (POST /registration/drafts removed),
+ * drafts are no longer created up-front — they are created automatically
+ * when the school-info step is submitted (useSchoolInfo).
  *
- * Case 1 — Expired draft in store (createdAt > 48 h)
- *   → clear the store
- *   → POST /registration/drafts  (create fresh)
- *   → store token + step + timestamp
- *   → return wasReset: true  (wizard clears transient logo state)
+ * This hook's responsibilities are now:
  *
- * Case 2 — Valid draft in store (within 48 h)
- *   → GET /registration/drafts  (sync server state)
- *   → update currentStep in store  (enables accurate resume)
- *   → return wasReset: false
+ * Case 1 — No draft in store (fresh start)
+ *   No async work needed. The wizard starts at step 1; the draft is
+ *   created when the user submits school info.
+ *   → return wasReset: false, isReady: true immediately
  *
- * Case 3 — No draft in store
- *   → POST /registration/drafts  (create fresh)
- *   → store token + step + timestamp
- *   → return wasReset: true
+ * Case 2 — Expired draft in store (createdAt > 48 h)
+ *   Clear the persisted state. The user must re-enter school info
+ *   (step 1) because we cannot recover a draft without that endpoint.
+ *   → clear store, return wasReset: true, isReady: true
+ *
+ * Case 3 — Valid draft in store (within 48 h) — resume
+ *   Sync the authoritative currentStep from the backend so the wizard
+ *   can restore the user to exactly where they left off.
+ *   → GET /registration/drafts → setCurrentStep → return wasReset: false
  *
  * Duplicate-request prevention
  * ────────────────────────────
- * Uses useQuery with staleTime: Infinity so React Query caches the result
- * in-memory for the lifetime of the tab. This prevents duplicate draft
- * creation caused by:
- *   • Component re-renders
- *   • React Strict Mode (double-invoke)
- *   • Multiple consumers calling this hook
- *
- * Each page-load triggers the queryFn exactly once (the in-memory cache
- * is cleared on refresh, but the persisted store is read first so the
- * network call is GET — not POST — when a valid draft exists).
+ * useQuery with staleTime: Infinity ensures this queryFn runs at most
+ * once per tab session, regardless of re-renders or React Strict Mode.
  *
  * Multi-tab
  * ─────────
- * Zustand's persist middleware automatically synchronises the store across
- * tabs via the storage event. Both tabs share the same draftToken and
- * this hook will find it in the store on initialisation, issuing a GET
- * instead of a POST and never creating a competing draft.
- *
- * Resume
- * ──────
- * When a valid draft exists, the hook calls GET /registration/drafts to
- * retrieve the authoritative currentStep. The wizard maps this to a step
- * number and advances to it, so returning users continue exactly where
- * they left off.
+ * Zustand persist synchronises the store across tabs via storage events.
+ * Tab 2 that opens while Tab 1 has an active draft will find the token
+ * in the store (Case 3) and resume rather than starting fresh.
  */
 
-import { useQuery }             from '@tanstack/react-query';
+import { useQuery }                       from '@tanstack/react-query';
 import { useOnboardingStore, isDraftExpired } from '@/stores/onboarding.store';
-import { createDraft, getDraft } from '../api/registration.api';
+import { getDraft }                       from '../api/registration.api';
 
-// Query key — exported so the wizard can invalidate on completion 
+/* ── Query key — exported so the wizard can remove it on completion ── */
 export const DRAFT_INIT_QUERY_KEY = ['registration', 'draft', 'init'] as const;
 
 interface InitDraftResult {
-  draftToken:  string;
-  currentStep: string;
+  draftToken:  string | null;
+  currentStep: string | null;
+  /** True when the local draft was cleared (expiry) and step must reset. */
   wasReset:    boolean;
 }
 
@@ -71,36 +57,32 @@ export function useInitializeDraft() {
     queryKey: DRAFT_INIT_QUERY_KEY,
 
     queryFn: async (): Promise<InitDraftResult> => {
-      
+      // Always read fresh state — avoids stale closure captures.
       const state = useOnboardingStore.getState();
 
-     
-      if (state.draftToken && isDraftExpired(state.createdAt)) {
+      /* Case 1 — No draft: nothing to do ───────────────────────── */
+      if (!state.draftToken) {
+        return { draftToken: null, currentStep: null, wasReset: false };
+      }
+
+      /* Case 2 — Expired draft: clear and restart ──────────────── */
+      if (isDraftExpired(state.createdAt)) {
         state.clearDraft();
-        const data = await createDraft();
-        useOnboardingStore.getState().setDraft(data.draftToken, data.currentStep);
-        return { draftToken: data.draftToken, currentStep: data.currentStep, wasReset: true };
+        return { draftToken: null, currentStep: null, wasReset: true };
       }
 
-     
-      if (state.draftToken) {
-        const data = await getDraft();
-        useOnboardingStore.getState().setCurrentStep(data.currentStep);
-        return { draftToken: state.draftToken, currentStep: data.currentStep, wasReset: false };
-      }
-
-
-      const data = await createDraft();
-      useOnboardingStore.getState().setDraft(data.draftToken, data.currentStep);
-      return { draftToken: data.draftToken, currentStep: data.currentStep, wasReset: true };
+      /* Case 3 — Valid draft: sync backend step ────────────────── */
+      const data = await getDraft();
+      useOnboardingStore.getState().setCurrentStep(data.currentStep);
+      return { draftToken: state.draftToken, currentStep: data.currentStep, wasReset: false };
     },
 
-    staleTime:          Infinity,  
-    gcTime:             Infinity,  
+    staleTime:            Infinity, // never refetch within a tab session
+    gcTime:               Infinity, // keep in memory until explicitly removed
     refetchOnWindowFocus: false,
     refetchOnReconnect:   false,
-    retry:              1,
-    retryDelay:         1_500,
+    retry:                1,
+    retryDelay:           1_500,
   });
 
   return {

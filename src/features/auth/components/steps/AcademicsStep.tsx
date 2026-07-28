@@ -77,9 +77,9 @@ export function AcademicsStep() {
             <FormControl>
               <NativeSelect {...field} className="h-11">
                 <option value="">Select…</option>
-                <option value="semester">Two semesters</option>
-                <option value="trimester">Three trimesters</option>
-                <option value="quarter">Four quarters</option>
+                <option value="two_semester">Two semesters</option>
+                <option value="three_trimester">Three trimesters</option>
+                <option value="four_quarter">Four quarters</option>
               </NativeSelect>
             </FormControl>
             <FormMessage />
@@ -95,11 +95,13 @@ export function AcademicsStep() {
             <FormLabel>Week starts on <span className="text-destructive">*</span></FormLabel>
             <FormControl>
               <NativeSelect {...field} className="h-11">
-                  <option value="mon">Monday</option>
-                  <option value="tues">Tuesday</option>
-                  <option value="wed">Wednesday</option>
-                  <option value="thurs">Thursday</option>
-                  <option value="fri">Friday</option>
+                  <option value="monday">Monday</option>
+                  <option value="tuesday">Tuesday</option>
+                  <option value="wednesday">Wednesday</option>
+                  <option value="thursday">Thursday</option>
+                  <option value="friday">Friday</option>
+                  <option value="saturday">Saturday</option>
+                  <option value="sunday">Sunday</option>
               </NativeSelect>
             </FormControl>
             <FormMessage />
