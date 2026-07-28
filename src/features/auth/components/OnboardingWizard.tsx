@@ -1,36 +1,3 @@
-/**
- * OnboardingWizard — Complete draft lifecycle
- *
- * Draft lifecycle implemented here:
- *
- *  Init   useInitializeDraft handles:
- *           • fresh start  → POST /registration/drafts
- *           • valid resume → GET  /registration/drafts → update store currentStep
- *           • expired      → clear + POST /registration/drafts + wasReset:true
- *         React Query deduplication (staleTime:Infinity) prevents duplicate
- *         draft creation from Strict Mode, re-renders, or multi-tab scenarios.
- *
- *  Step   Initialized synchronously from the persisted store (lazy useState).
- *  init   isDraftExpired() is checked inside the initializer so an expired
- *         draft always starts at step 1, no useEffect→setState required.
- *         Zustand persist reads localStorage synchronously (client-only), so
- *         the persisted currentStep is available at first render.
- *
- *  Guard  The Continue button stays in loading state until isReady.
- *         handleContinue returns early if draftReady is false.
- *
- *  Reset  When draftWasReset is true (new draft was created), stale logo
- *         form state is cleared via form.setValue inside a useEffect.
- *         This does NOT trigger react-hooks/set-state-in-effect because
- *         form.setValue is an RHF method, not a React state setter.
- *
- *  Complete
- *         clearDraft()                   — wipes persisted store
- *         queryClient.removeQueries()    — clears the init query cache
- *         Ensures a future visit to /onboarding creates a fresh draft.
- *
- */
-
 'use client';
 
 import Link from 'next/link';
@@ -48,10 +15,10 @@ import {
   type OnboardingFormValues,
 } from '../schemas/onboarding.schema';
 
-import { useAuthStore }                    from '@/stores/auth.store';
-import { useSchoolStore }                  from '@/stores/school.store';
+import { useAuthStore }                      from '@/stores/auth.store';
+import { useSchoolStore }                    from '@/stores/school.store';
 import { useOnboardingStore, isDraftExpired } from '@/stores/onboarding.store';
-import { setAuthCookie }                   from '@/features/auth/hooks/useAuth';
+import { setAuthCookie }                     from '@/features/auth/hooks/useAuth';
 
 import {
   useInitializeDraft,
@@ -80,7 +47,10 @@ const STEP_COMPONENTS = {
   5: AdministratorsStep,
 } as const;
 
-
+/**
+ * Maps backend step names to wizard step numbers.
+ * Used in the lazy useState initializer for page-refresh resume.
+ */
 const BACKEND_STEP_MAP: Record<string, number> = {
   school_info:        1,
   institution_info:   2,
@@ -92,14 +62,12 @@ const BACKEND_STEP_MAP: Record<string, number> = {
 export function OnboardingWizard() {
   const queryClient = useQueryClient();
 
-  // Auth / school stores 
   const setAuthenticated = useAuthStore((s) => s.setAuthenticated);
   const setUser          = useAuthStore((s) => s.setUser);
   const setLogo          = useSchoolStore((s) => s.setLogo);
   const setSchoolName    = useSchoolStore((s) => s.setSchoolName);
   const clearDraft       = useOnboardingStore((s) => s.clearDraft);
 
-  // Draft lifecycle 
   const {
     isLoading:     draftLoading,
     isReady:       draftReady,
@@ -107,14 +75,14 @@ export function OnboardingWizard() {
     draftWasReset,
   } = useInitializeDraft();
 
-  // Step mutations 
+ 
   const { mutate: submitSchoolInfo,       isPending: schoolInfoPending,  error: schoolInfoError }  = useSchoolInfo();
   const { mutate: submitInstitutionInfo,  isPending: institutionPending, error: institutionError } = useInstitutionInfo();
   const { mutate: submitAcademicSettings, isPending: academicPending,    error: academicError }    = useAcademicSettings();
   const { mutate: submitAdministrators,   isPending: adminPending,       error: adminError }       = useAdministrators();
   const { mutate: complete,               isPending: completePending,    error: completeError }    = useCompleteRegistration();
 
-  // Form (declared before any effect that references it)
+  
   const form = useForm<OnboardingFormValues>({
     resolver: zodResolver(onboardingSchema),
     defaultValues: {
@@ -126,8 +94,8 @@ export function OnboardingWizard() {
       state:                '',
       academicYear:         '',
       gradingSystem:        'letter',
-      termStructure:        'semester',
-      weekStart:            'mon',
+      termStructure:        'two_semester',
+      weekStart:            'monday',
       startTime:            '',
       endTime:              '',
       logoDataUrl:          null,
@@ -141,18 +109,7 @@ export function OnboardingWizard() {
     mode: 'onTouched',
   });
 
-  /* Step state 
-   *
-   * Lazy initializer reads from the persisted onboarding store so
-   * that a returning user resumes at their last step without any
-   * useEffect → setState chain.
-   *
-   * isDraftExpired() is checked here so that an expired draft never
-   * restores a stale step — it always returns 1 instead.
-   *
-   * Zustand persist reads localStorage synchronously, so the persisted
-   * currentStep value is available by the time this function runs.
-   */
+  
   const [step, setStep] = useState<number>(() => {
     if (typeof window === 'undefined') return 1;
     const state = useOnboardingStore.getState();
@@ -168,29 +125,27 @@ export function OnboardingWizard() {
 
   const [done, setDone] = useState(false);
 
-  /* Clear stale logo when a new draft is created 
-   *
-   * draftWasReset is true when useInitializeDraft created a new draft
-   * (either first visit or after expiry). Any previously uploaded logo
-   * belongs to the old (now invalid) draft and must not be reused.
-   *
-   * form.setValue is an RHF method, not a React state setter, so this
-   * pattern does not trigger react-hooks/set-state-in-effect.
-   */
+  /* ── Clear stale logo when draft was reset ────────────────── */
   useEffect(() => {
     if (!draftWasReset) return;
     form.setValue('logoDataUrl',  null, { shouldDirty: false });
     form.setValue('logoPublicId', null, { shouldDirty: false });
   }, [draftWasReset, form]);
 
-  // Derived
-  const stepPending = schoolInfoPending || institutionPending || academicPending || adminPending || completePending;
-  const isPending   = draftLoading || stepPending;
-  const activeError = draftError || schoolInfoError || institutionError || academicError || adminError || completeError;
+ 
+  const stepPending =
+    schoolInfoPending || institutionPending || academicPending || adminPending || completePending;
 
-  // Step navigation 
+
+  const isPending   = draftLoading || stepPending;
+  const activeError =
+    draftError || schoolInfoError || institutionError || academicError || adminError || completeError;
+
+  /* ── Step navigation ──────────────────────────────────────── */
   async function handleContinue() {
-    // Guard: never submit without a valid draft
+    // Guard: do not submit before initialization is complete.
+    // Relevant during the resume GET; effectively a no-op for fresh starts
+    // because the init query resolves synchronously for the no-draft case.
     if (!draftReady) return;
 
     const stepFields = STEP_FIELD_MAP[step as keyof typeof STEP_FIELD_MAP] ?? [];
@@ -202,14 +157,24 @@ export function OnboardingWizard() {
     const values = form.getValues();
 
     if (step === 1) {
+      /*
+       * Step 1 — School information
+       *
+       * Field mapping (RHF form → backend contract):
+       *   values.contactEmail → email
+       *   values.state        → country: "Nigeria" (hardcoded per backend)
+       *
+       * On success, useSchoolInfo.onSuccess calls setDraft(token, step),
+       * persisting the draft token before the wizard advances.
+       */
       submitSchoolInfo(
         {
-          name:         values.name,
-          contactEmail: values.contactEmail,
-          phone:        values.phone,
-          address:      values.address,
-          city:         values.city,
-          state:        values.state,
+          name:    values.name,
+          email:   values.contactEmail,
+          phone:   values.phone,
+          address: values.address,
+          city:    values.city,
+          country: 'Nigeria',
         },
         { onSuccess: () => setStep(2) },
       );
@@ -217,8 +182,16 @@ export function OnboardingWizard() {
     }
 
     if (step === 2) {
+      const institutionType =
+        values.schoolType === 'college' || values.schoolType === 'district'
+          ? 'private'
+          : 'public';
+
       submitInstitutionInfo(
-        { schoolType: values.schoolType },
+        {
+          institutionType,
+          educationalLevels: ['primary', 'secondary'],
+        },
         { onSuccess: () => setStep(3) },
       );
       return;
@@ -231,14 +204,20 @@ export function OnboardingWizard() {
     }
 
     if (step === 4) {
+      const startYear = values.academicYear;
+      const endYear = startYear ? String(Number(startYear) + 1) : '';
+      const academicYear = startYear && endYear ? `${startYear}/${endYear}` : '';
+      const schoolDays = [values.weekStart];
+
       submitAcademicSettings(
         {
-          academicYear:  values.academicYear,
+          academicYear,
           gradingSystem: values.gradingSystem,
           termStructure: values.termStructure,
-          weekStart:     values.weekStart,
-          startTime:     values.startTime,
-          endTime:       values.endTime,
+          weekStartsOn: values.weekStart,
+          schoolDays,
+          schoolStartTime: values.startTime,
+          schoolEndTime: values.endTime,
         },
         { onSuccess: () => setStep(5) },
       );
@@ -249,16 +228,15 @@ export function OnboardingWizard() {
     await form.handleSubmit(() => {
       submitAdministrators(
         {
-          fullName: values.adminFullName,
-          email:    values.adminEmail,
-          phone:    values.adminPhone,
-          password: values.adminPassword,
+          primaryFullName: values.adminFullName,
+          primaryEmail:    values.adminEmail,
+          primaryPhone:    values.adminPhone,
+          primaryPassword: values.adminPassword,
         },
         {
           onSuccess: () => {
             complete(undefined, {
               onSuccess: (data) => {
-                // Set auth credentials
                 setAuthCookie(data.token, false);
                 setAuthenticated(true);
                 setUser({
@@ -266,15 +244,10 @@ export function OnboardingWizard() {
                   email: values.adminEmail,
                   role:  'SCHOOL_ADMIN',
                 });
-
-                // Persist school branding for the dashboard
                 if (values.logoDataUrl) setLogo(values.logoDataUrl);
                 setSchoolName(values.name);
-
-                // Clear ALL draft state: persisted store + React Query cache
                 clearDraft();
                 queryClient.removeQueries({ queryKey: DRAFT_INIT_QUERY_KEY });
-
                 setDone(true);
               },
             });
@@ -284,7 +257,7 @@ export function OnboardingWizard() {
     })();
   }
 
-  // Success screen
+  /* ── Success screen ───────────────────────────────────────── */
   if (done) {
     const schoolName = form.getValues('name') || 'Your school';
 
@@ -303,20 +276,16 @@ export function OnboardingWizard() {
           >
             <CheckIcon className="h-10 w-10" strokeWidth={3} />
           </motion.div>
-
           <h1 className="mt-6 font-display text-2xl font-extrabold text-slate-900">
             You&rsquo;re all set!
           </h1>
           <p className="mt-2 text-slate-500">
-            {schoolName} is ready. Your workspace has been configured
-            and you can start now.
+            {schoolName} is ready. Your workspace has been configured and you can start now.
           </p>
-
           <div className="mt-6 flex items-center justify-center gap-2 rounded-xl bg-gold-50 px-4 py-3 text-sm font-semibold text-gold-600">
             <SparklesIcon className="h-4 w-4" />
             14-day Enterprise trial activated
           </div>
-
           <Button
             size="xl"
             className="mt-8 w-full"
@@ -330,7 +299,7 @@ export function OnboardingWizard() {
     );
   }
 
-  // Wizard
+ 
   const StepComponent = STEP_COMPONENTS[step as keyof typeof STEP_COMPONENTS];
   const stepLabel     = ONBOARDING_STEPS[step - 1].label;
 
@@ -370,7 +339,6 @@ export function OnboardingWizard() {
                 <h3 className="mt-1 font-display text-xl font-extrabold text-slate-900">
                   {stepLabel}
                 </h3>
-
                 <div className="mt-6">
                   <FormProvider {...form}>
                     <StepComponent />
