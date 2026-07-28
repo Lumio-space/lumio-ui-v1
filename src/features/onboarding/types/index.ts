@@ -1,47 +1,48 @@
 
-// Draft 
-export interface CreateDraftResponse {
+export interface SchoolInfoPayload {
+  name:    string;
+  email:   string;
+  phone:   string;
+  address: string;
+  city:    string;
+  country: string;
+}
+
+
+export interface SchoolInfoResponse {
   draftToken:  string;
   currentStep: string;
 }
+
 
 export interface GetDraftResponse {
   draftToken:  string;
   currentStep: string;
 }
 
-// Step payloads 
-
-export interface SchoolInfoPayload {
-  name:         string;
-  contactEmail: string;
-  phone:        string;
-  address:      string;
-  city:         string;
-  state:        string;
-}
 
 export interface InstitutionInfoPayload {
-  schoolType: 'k12' | 'college' | 'district';
+  institutionType: 'public' | 'private' | 'charter' | 'magnet' | 'online';
+  educationalLevels: Array<'nursery' | 'primary' | 'secondary'>;
 }
 
 export interface AcademicSettingsPayload {
   academicYear:  string;
   gradingSystem: 'letter' | 'gpa' | 'percent';
-  termStructure: 'semester' | 'trimester' | 'quarter';
-  weekStart:     'mon' | 'tues' | 'wed' | 'thurs' | 'fri';
-  startTime:     string;
-  endTime:       string;
+  termStructure: 'two_semester' | 'three_trimester' | 'four_quarter';
+  weekStartsOn: 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday';
+  schoolDays: Array<'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday'>;
+  schoolStartTime: string;
+  schoolEndTime: string;
 }
 
 export interface AdministratorsPayload {
-  fullName: string;
-  email:    string;
-  phone:    string;
-  password: string;
+  primaryFullName: string;
+  primaryEmail:    string;
+  primaryPhone:    string;
+  primaryPassword: string;
 }
 
-// Branding 
 
 export interface BrandingSignatureResponse {
   cloud_name: string;
@@ -51,7 +52,6 @@ export interface BrandingSignatureResponse {
   folder:     string;
 }
 
-
 export interface LogoMetadata {
   public_id:  string;
   secure_url: string;
@@ -60,15 +60,11 @@ export interface LogoMetadata {
   format:     string;
 }
 
-/** Raw Cloudinary upload response — may contain extra fields. */
 export interface CloudinaryUploadResponse extends LogoMetadata {
   [key: string]: unknown;
 }
 
-/**
- * Payload sent to POST /registration/drafts/steps/branding.
- * The backend expects camelCase field names — NOT snake_case.
- */
+
 export interface BrandingPayload {
   publicId:  string;
   secureUrl: string;
@@ -77,7 +73,6 @@ export interface BrandingPayload {
   format:    string;
 }
 
-// Complete registration 
 
 export interface CompleteRegistrationResponse {
   schoolId:   string;
