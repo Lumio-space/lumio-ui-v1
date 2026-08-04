@@ -13,3 +13,4 @@ export async function loginUser(credentials: LoginFormValues): Promise<LoginResp
 export async function logoutUser(): Promise<void> {
   await apiClient.post('/auth/logout');
 }
+
