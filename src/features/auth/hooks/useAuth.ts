@@ -64,12 +64,24 @@ export function useLogout() {
   })
 }
 
-export function useForgotPassword() {
+export function useForgotPassword(options?: {
+  onSuccess?: () => void
+  onError?: (error: unknown) => void
+}) {
   return useMutation({
     mutationFn: (values: ForgotPasswordFormValues) =>
       forgotPassword(values),
+
+    onSuccess: () => {
+      options?.onSuccess?.()
+    },
+
+    onError: (error) => {
+      options?.onError?.(error)
+    },
   })
 }
+
 
 /** Cookie helper — exported so the OnboardingWizard can set auth on completion. */
 export { setAuthCookie }

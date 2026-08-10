@@ -1,9 +1,14 @@
 'use client';
 
 import Link from 'next/link';
+import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { MailIcon, ArrowRightIcon } from 'lucide-react';
+import {
+  MailIcon,
+  ArrowRightIcon,
+  CheckCircle2Icon,
+} from 'lucide-react';
 
 import { Logo } from '@/components/Logo';
 import { Button } from '@/components/ui/button';
@@ -26,11 +31,8 @@ import {
 import { useForgotPassword } from '@/features/auth/hooks/useAuth';
 
 export function ForgotPasswordForm() {
-  const {
-    mutate: forgotPassword,
-    isPending,
-    error,
-  } = useForgotPassword();
+  const [success, setSuccess] = useState(false);
+  const [friendlyError, setFriendlyError] = useState('');
 
   const form = useForm<ForgotPasswordFormValues>({
     resolver: zodResolver(forgotPasswordSchema),
@@ -40,7 +42,27 @@ export function ForgotPasswordForm() {
     },
   });
 
+  const { mutate: forgotPassword, isPending } = useForgotPassword({
+    onSuccess: () => {
+      setSuccess(true);
+      form.reset();
+
+      setTimeout(() => {
+        setSuccess(false);
+      }, 10000);
+    },
+
+    onError: (err) => {
+      console.error(err);
+
+      setFriendlyError(
+        "We couldn't process your request. Please try again in a few minutes."
+      );
+    },
+  });
+
   function onSubmit(values: ForgotPasswordFormValues) {
+    setFriendlyError('');
     forgotPassword(values);
   }
 
@@ -61,64 +83,88 @@ export function ForgotPasswordForm() {
           Enter your email address and we'll send you a password reset link.
         </p>
 
-        {error && (
+        {success ? (
           <div
-            role="alert"
-            className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+            role="status"
+            aria-live="polite"
+            className="mt-8 rounded-xl border border-green-200 bg-green-50 p-5"
           >
-            {error instanceof Error
-              ? error.message
-              : 'Something went wrong.'}
+            <div className="flex items-start gap-3">
+              <CheckCircle2Icon className="mt-0.5 h-5 w-5 text-green-600" />
+
+              <div>
+                <h3 className="font-semibold text-green-900">
+                  Check your inbox
+                </h3>
+
+                <p className="mt-1 text-sm text-green-700">
+                  If an account exists for that email, we've sent password
+                  reset instructions. Please check your inbox and your spam
+                  folder.
+                </p>
+              </div>
+            </div>
           </div>
+        ) : (
+          <>
+            {friendlyError && (
+              <div
+                role="alert"
+                className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+              >
+                {friendlyError}
+              </div>
+            )}
+
+            <Form {...form}>
+              <form
+                onSubmit={form.handleSubmit(onSubmit)}
+                className="mt-8 space-y-4"
+                noValidate
+              >
+                <FormField
+                  control={form.control}
+                  name="email"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Email address</FormLabel>
+
+                      <div className="relative">
+                        <MailIcon
+                          className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+                          aria-hidden="true"
+                        />
+
+                        <FormControl>
+                          <Input
+                            {...field}
+                            type="email"
+                            placeholder="you@school.edu"
+                            autoComplete="email"
+                            className="h-11 rounded-xl pl-9"
+                          />
+                        </FormControl>
+                      </div>
+
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <Button
+                  type="submit"
+                  size="xl"
+                  loading={isPending}
+                  disabled={isPending || success}
+                  rightIcon={<ArrowRightIcon className="h-4 w-4" />}
+                  className="w-full"
+                >
+                  Send Reset Link
+                </Button>
+              </form>
+            </Form>
+          </>
         )}
-
-        <Form {...form}>
-          <form
-            onSubmit={form.handleSubmit(onSubmit)}
-            className="mt-8 space-y-4"
-            noValidate
-          >
-
-            <FormField
-              control={form.control}
-              name="email"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Email address</FormLabel>
-
-                  <div className="relative">
-                    <MailIcon
-                      className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
-                      aria-hidden="true"
-                    />
-
-                    <FormControl>
-                      <Input
-                        {...field}
-                        type="email"
-                        placeholder="you@school.edu"
-                        autoComplete="email"
-                        className="h-11 rounded-xl pl-9"
-                      />
-                    </FormControl>
-                  </div>
-
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <Button
-              type="submit"
-              size="xl"
-              loading={isPending}
-              rightIcon={<ArrowRightIcon className="h-4 w-4" />}
-              className="w-full"
-            >
-              Send Reset Link
-            </Button>
-
-          </form>
-        </Form>
 
         <div className="mt-8 text-center">
           <Link
