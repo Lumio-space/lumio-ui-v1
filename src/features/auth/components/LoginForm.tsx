@@ -4,10 +4,11 @@
 
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { MailIcon, LockIcon, ArrowRightIcon } from 'lucide-react';
+import { MailIcon, LockIcon, ArrowRightIcon, EyeOffIcon, EyeIcon } from 'lucide-react';
 
 import { loginSchema, type LoginFormValues } from '@/features/auth/schemas/login.schema';
 import { useLogin } from '@/features/auth/hooks/useAuth';
@@ -22,6 +23,7 @@ import {
 
 export function LoginForm() {
   const { mutate: login, isPending, error } = useLogin();
+  const [ showPassword, setShowPassword ] = useState(false);
 
   const form = useForm<LoginFormValues>({
     resolver:      zodResolver(loginSchema),
@@ -104,12 +106,24 @@ export function LoginForm() {
                     <FormControl>
                       <Input
                         {...field}
-                        type="password"
+                        type={showPassword ? 'text': 'password'}
                         placeholder="••••••••"
                         autoComplete="current-password"
                         className="h-11 rounded-xl pl-9"
                       />
                     </FormControl>
+                    <button
+                        type="button"
+                        onClick={() => setShowPassword((value) => !value)}
+                        aria-label={showPassword ? 'Hide password' : 'Show password'}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                    >
+                      {showPassword ? (
+                          <EyeOffIcon className="h-4 w-4" aria-hidden="true" />
+                      ) : (
+                          <EyeIcon className="h-4 w-4" aria-hidden="true" />
+                      )}
+                    </button>
                   </div>
                   <FormMessage />
                 </FormItem>
