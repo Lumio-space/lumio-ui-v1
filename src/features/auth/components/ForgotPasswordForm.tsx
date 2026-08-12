@@ -52,9 +52,7 @@ export function ForgotPasswordForm() {
       }, 10000);
     },
 
-    onError: (err) => {
-      console.error(err);
-
+    onError: () => {
       setFriendlyError(
         "We couldn't process your request. Please try again in a few minutes."
       );
@@ -80,7 +78,7 @@ export function ForgotPasswordForm() {
         </h2>
 
         <p className="mt-1.5 text-sm text-slate-500">
-          Enter your email address and we'll send you a password reset link.
+          Enter your email address and we will send you a password reset link.
         </p>
 
         {success ? (
@@ -98,7 +96,7 @@ export function ForgotPasswordForm() {
                 </h3>
 
                 <p className="mt-1 text-sm text-green-700">
-                  If an account exists for that email, we've sent password
+                  If an account exists for that email, we have sent password
                   reset instructions. Please check your inbox and your spam
                   folder.
                 </p>
