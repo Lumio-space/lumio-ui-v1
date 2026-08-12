@@ -66,18 +66,18 @@ export function useLogout() {
 
 export function useForgotPassword(options?: {
   onSuccess?: () => void
-  onError?: (error: unknown) => void
+  onError?: () => void
 }) {
   return useMutation({
     mutationFn: (values: ForgotPasswordFormValues) =>
-      forgotPassword(values),
+        forgotPassword(values),
 
     onSuccess: () => {
       options?.onSuccess?.()
     },
 
-    onError: (error) => {
-      options?.onError?.(error)
+    onError: () => {
+      options?.onError?.()
     },
   })
 }

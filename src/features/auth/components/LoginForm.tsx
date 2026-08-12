@@ -145,9 +145,9 @@ export function LoginForm() {
                   </label>
                 )}
               />
-              <a href="#" className="text-sm font-semibold text-purple-600 hover:text-purple-700">
+              <Link href="/forgot-password" className="text-sm font-semibold text-purple-600 hover:text-purple-700">
                 Forgot password?
-              </a>
+              </Link>
             </div>
 
             {/* Submit */}
