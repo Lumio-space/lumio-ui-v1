@@ -112,8 +112,8 @@ describe('academicsSchema', () => {
   const VALID = {
     academicYear:  '2026',
     gradingSystem: 'letter'   as const,
-    termStructure: 'semester' as const,
-    weekStart:     'mon'      as const,
+    termStructure: 'two_semester' as const,
+    weekStart:     'monday'      as const,
     startTime:     '08:30',
     endTime:       '15:30',
   };
