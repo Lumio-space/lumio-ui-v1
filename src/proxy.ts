@@ -7,7 +7,7 @@ const PROTECTED_PREFIXES = ['/dashboard', '/students', '/teachers', '/classes',
   '/announcements', '/settings'];
 
 /** Routes only accessible when NOT authenticated */
-const AUTH_ONLY_PREFIXES = ['/login', '/onboarding'];
+const AUTH_ONLY_PREFIXES = ['/login', '/onboarding', '/forgot-password'];
 
 export function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
