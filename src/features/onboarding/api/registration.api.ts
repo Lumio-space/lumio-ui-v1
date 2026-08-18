@@ -71,11 +71,39 @@ export async function saveInstitutionInfo(payload: InstitutionInfoPayload): Prom
  * Request Cloudinary-signed upload parameters.
  * Requires x-draft-token (attached by the request interceptor).
  */
+interface BrandingSignatureRawResponse {
+  api_key?:  string;
+  apiKey?:   string;
+  signature: string;
+  timestamp: number;
+  folder:    string;
+  tags?:     string;
+}
+
+function normalizeBrandingSignatureResponse(
+  data: BrandingSignatureRawResponse,
+): BrandingSignatureResponse {
+  const api_key = data.api_key ?? data.apiKey;
+  if (!api_key) {
+    throw new Error(
+      'Cloudinary signature response is missing api_key. Please retry or contact support.',
+    );
+  }
+
+  return {
+    api_key,
+    signature: data.signature,
+    timestamp: data.timestamp,
+    folder: data.folder,
+    tags: data.tags ?? '',
+  };
+}
+
 export async function requestBrandingSignature(): Promise<BrandingSignatureResponse> {
-  const response = await apiClient.post<BrandingSignatureResponse>(
+  const response = await apiClient.post<BrandingSignatureRawResponse>(
     '/registration/drafts/branding/signature',
   );
-  return response.data;
+  return normalizeBrandingSignatureResponse(response.data);
 }
 
 /**
