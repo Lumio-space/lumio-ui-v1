@@ -5,15 +5,23 @@ export async function uploadToCloudinary(
   file:   File,
   params: BrandingSignatureResponse,
 ): Promise<LogoMetadata> {
+  const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
+  if (!cloudName) {
+    throw new Error(
+      'Cloudinary is not configured. Missing NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME environment variable.',
+    );
+  }
+
   const formData = new FormData();
   formData.append('file',      file);
   formData.append('api_key',   params.api_key);
   formData.append('signature', params.signature);
   formData.append('timestamp', String(params.timestamp));
   formData.append('folder',    params.folder);
+  formData.append('tags',      params.tags);
 
   const response = await fetch(
-    `https://api.cloudinary.com/v1_1/${params.cloud_name}/image/upload`,
+    `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`,
     { method: 'POST', body: formData },
   );
 

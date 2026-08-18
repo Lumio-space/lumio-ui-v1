@@ -1,84 +1,68 @@
-'use client'
+'use client';
 
+/**
+ * BrandingStep — Step 3 of the onboarding wizard.
+ *
+ * Responsibilities
+ * ─────────────────
+ * • Render the generic ImageUpload component wired to the branding upload flow.
+ * • Bridge between React Hook Form state (logoDataUrl, logoPublicId) and the
+ *   ImageUpload controlled interface (value / onChange / onUpload).
+ * • Show the domain-specific sidebar preview below the upload zone.
+ *
+ * The upload logic itself lives in:
+ *   features/onboarding/hooks/useBranding.ts   — React Query mutation
+ *   features/onboarding/services/logo.upload.ts — orchestration
+ *   features/onboarding/services/logo.cloudinary.ts — Cloudinary upload
+ */
 
-import React, { useState } from 'react'
-import { useFormContext, useWatch } from 'react-hook-form'
-import { UploadCloudIcon, ImageIcon, XIcon, Loader2Icon } from 'lucide-react'
-import { cn } from '@/lib/utils'
-import { validateLogoFile, LOGO_MAX_LABEL } from '@/features/onboarding/services/logo.validation'
-import { useBranding }                      from '@/features/onboarding/hooks/useBranding'
+import { useFormContext, useWatch } from 'react-hook-form';
+import { ImageIcon }                from 'lucide-react';
+import { ImageUpload }              from '@/components/shared/ImageUpload';
+import { useBranding }              from '@/features/onboarding/hooks/useBranding';
+import { LOGO_MAX_LABEL }           from '@/features/onboarding/services/logo.validation';
+import type { UploadedImageMetadata } from '@/services/cloudinary';
 
 export function BrandingStep() {
-  const { control, setValue, setError, clearErrors, formState } =
-    useFormContext()
+  const { control, setValue, clearErrors, formState } = useFormContext();
 
-  // RHF state — persisted across AnimatePresence unmount/remount
-  const logoDataUrl = useWatch({ control, name: 'logoDataUrl' })
+  // RHF persists the Cloudinary URL across AnimatePresence unmount/remount.
+  const logoDataUrl = useWatch({ control, name: 'logoDataUrl' }) as string | null;
 
-  // Local UI state — reset on remount (only needed while the step is mounted)
-  const [previewDataUrl, setPreviewDataUrl] = useState<string | null>(null)
+  const { mutateAsync: uploadLogo } = useBranding();
 
-  const { mutate: uploadLogo, isPending: isUploading } = useBranding()
+  const logoError = formState.errors?.logoDataUrl;
 
-  // Which URL to show:
-  //   • During upload:  local data URL (immediate feedback via FileReader)
-  //   • After upload:   Cloudinary secure_url (from RHF)
-  //   • After remount:  Cloudinary secure_url restored from RHF (local state gone)
-  const displayUrl = previewDataUrl ?? logoDataUrl ?? null
-  const hasLogo    = Boolean(displayUrl)
-  const logoError  = formState.errors?.logoDataUrl
-
-  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
-
-    // Reset so re-selecting the same file re-triggers onChange
-    e.target.value = ''
-
-    // Client-side validation (mirrors backend rules)
-    const validation = validateLogoFile(file)
-    if (!validation.valid) {
-      setError('logoDataUrl', { message: validation.message })
-      return
-    }
-
-    clearErrors('logoDataUrl')
-
-    // Immediate preview via FileReader — shown while the upload is in flight
-    const reader = new FileReader()
-    reader.onload = () => {
-      setPreviewDataUrl(reader.result as string)
-    }
-    reader.readAsDataURL(file)
-
-    uploadLogo(file, {
-      onSuccess: (metadata) => {
-        // Commit the Cloudinary URL and public_id to form state
-        setValue('logoDataUrl', metadata.secure_url, {
-          shouldDirty:    true,
-          shouldTouch:    true,
-          shouldValidate: false,
-        })
-        setValue('logoPublicId', metadata.public_id, {
-          shouldDirty: true,
-        })
-        // Drop the local preview — the Cloudinary URL is now in RHF
-        setPreviewDataUrl(null)
-      },
-      onError: (err) => {
-        const message =
-          err instanceof Error ? err.message : 'Upload failed. Please try again.'
-        setError('logoDataUrl', { message })
-        setPreviewDataUrl(null)
-      },
-    })
+  /**
+   * Bridge: useBranding returns snake_case LogoMetadata (Cloudinary convention).
+   * ImageUpload expects camelCase UploadedImageMetadata (frontend convention).
+   */
+  async function handleUpload(file: File): Promise<UploadedImageMetadata> {
+    const meta = await uploadLogo(file);
+    return {
+      publicId:  meta.public_id,
+      secureUrl: meta.secure_url,
+      width:     meta.width,
+      height:    meta.height,
+      format:    meta.format,
+    };
   }
 
-  function handleRemove() {
-    setValue('logoDataUrl',  null, { shouldDirty: true })
-    setValue('logoPublicId', null, { shouldDirty: true })
-    setPreviewDataUrl(null)
-    clearErrors('logoDataUrl')
+  /** Commit upload result or removal into RHF state. */
+  function handleChange(metadata: UploadedImageMetadata | null) {
+    if (metadata) {
+      clearErrors('logoDataUrl');
+      setValue('logoDataUrl', metadata.secureUrl, {
+        shouldDirty:    true,
+        shouldTouch:    true,
+        shouldValidate: false,
+      });
+      setValue('logoPublicId', metadata.publicId, { shouldDirty: true });
+    } else {
+      setValue('logoDataUrl',  null, { shouldDirty: true });
+      setValue('logoPublicId', null, { shouldDirty: true });
+      clearErrors('logoDataUrl');
+    }
   }
 
   return (
@@ -88,83 +72,26 @@ export function BrandingStep() {
         workspace. This step is optional — you can update it later in Settings.
       </p>
 
-      {/* Upload area */}
-      <label
-        className={cn(
-          'flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed px-6 py-10 text-center transition-colors',
-          hasLogo
-            ? 'border-purple-300 bg-purple-50/40'
-            : 'border-slate-300 bg-slate-50 hover:border-purple-400 hover:bg-purple-50/40',
-          logoError  && 'border-red-300 bg-red-50/40',
-          isUploading && 'pointer-events-none opacity-60',
-        )}
-      >
-        {isUploading ? (
-          <Loader2Icon className="h-10 w-10 animate-spin text-purple-400" />
-        ) : (
-          <UploadCloudIcon
-            className={cn(
-              'h-10 w-10',
-              hasLogo
-                ? 'text-purple-400'
-                : logoError
-                  ? 'text-red-400'
-                  : 'text-slate-400',
-            )}
-          />
-        )}
+      <ImageUpload
+        onUpload={handleUpload}
+        value={logoDataUrl}
+        onChange={handleChange}
+        error={logoError ? String(logoError.message) : undefined}
+        validation={{ maxLabel: LOGO_MAX_LABEL }}
+      />
 
-        <span className="mt-3 text-sm font-semibold text-slate-700">
-          {isUploading
-            ? 'Uploading…'
-            : hasLogo
-              ? 'Click to replace logo'
-              : 'Click to upload or drag and drop'}
-        </span>
-        <span className="mt-1 text-xs text-slate-400">
-          PNG, JPG, SVG or WebP — max {LOGO_MAX_LABEL}
-        </span>
-        <input
-          type="file"
-          accept="image/png,image/jpeg,image/svg+xml,image/webp"
-          className="hidden"
-          onChange={handleFileChange}
-          disabled={isUploading}
-          aria-label="Upload school logo"
-        />
-      </label>
-
-      {/* Validation / upload error */}
-      {logoError && (
-        <p role="alert" className="text-xs font-medium text-destructive">
-          {String(logoError.message)}
-        </p>
-      )}
-
-      {/* Sidebar preview */}
+      {/* ── Sidebar preview — domain-specific, not part of ImageUpload ── */}
       <div className="rounded-xl border border-slate-200 p-4">
-        <div className="mb-3 flex items-center justify-between">
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-            Sidebar preview
-          </p>
-          {hasLogo && !isUploading && (
-            <button
-              type="button"
-              onClick={handleRemove}
-              className="flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-red-500 hover:bg-red-50"
-            >
-              <XIcon className="h-3 w-3" />
-              Remove
-            </button>
-          )}
-        </div>
+        <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-400">
+          Sidebar preview
+        </p>
 
         <div className="flex items-center gap-3 rounded-xl bg-indigo-900 px-4 py-3">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-indigo-800/60 ring-1 ring-inset ring-indigo-700/50">
-            {displayUrl ? (
+            {logoDataUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
-                src={displayUrl}
+                src={logoDataUrl}
                 alt="School logo preview"
                 className="h-full w-full object-cover"
               />
@@ -181,5 +108,5 @@ export function BrandingStep() {
         </div>
       </div>
     </div>
-  )
+  );
 }

@@ -3,17 +3,19 @@
  *
  * Tests are organised by module:
  *
- *   validateLogoFile     — pure validation (logo.validation.ts)
- *   uploadToCloudinary   — direct Cloudinary upload via fetch (logo.cloudinary.ts)
- *   requestBrandingSignature — POST /registration/drafts/branding/signature (registration.api.ts)
- *   saveBranding             — POST /registration/drafts/steps/branding (registration.api.ts)
- *   uploadSchoolLogo     — end-to-end orchestration (logo.upload.ts)
+ *   validateLogoFile         — pure validation (logo.validation.ts)
+ *   uploadToCloudinary       — direct Cloudinary upload via fetch (logo.cloudinary.ts)
+ *   requestBrandingSignature — POST /registration/drafts/branding/signature
+ *   saveBranding             — POST /registration/drafts/steps/branding
+ *   uploadSchoolLogo         — end-to-end orchestration (logo.upload.ts)
  *
  * Network strategy:
  *   - apiClient (Axios) is mocked at the module level via vi.mock so
  *     no real HTTP calls are made and the interceptor side-effects are skipped.
  *   - global fetch is stubbed for the direct Cloudinary upload which uses
  *     browser fetch (not Axios) as required by the architecture.
+ *   - NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME is stubbed via vi.stubEnv so
+ *     uploadToCloudinary reads a predictable test value.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -47,23 +49,28 @@ import type {
   LogoMetadata,
 } from '@/features/onboarding/types';
 
+/* ── Constants ────────────────────────────────────────────────── */
+
+const TEST_CLOUD_NAME = 'test-cloud';
+
 /* ── Test fixtures ────────────────────────────────────────────── */
 
 function makeFile(name: string, type: string, sizeBytes = 512): File {
   return new File([new Uint8Array(sizeBytes).fill(65)], name, { type });
 }
 
+/** cloud_name is NOT in BrandingSignatureResponse — it comes from the env var. */
 const SIGNED_PARAMS: BrandingSignatureResponse = {
-  cloud_name: 'test-cloud',
-  api_key:    '999888777666555',
-  signature:  'abc123sig',
-  timestamp:  1700000000,
-  folder:     'lumio/schools/logos',
+  api_key:   '999888777666555',
+  signature: 'abc123sig',
+  timestamp: 1700000000,
+  folder:    'lumio/schools/logos',
+  tags:      '',
 };
 
 const CLOUDINARY_RESPONSE = {
   public_id:  'lumio/schools/logos/test_abc',
-  secure_url: 'https://res.cloudinary.com/test-cloud/image/upload/lumio/schools/logos/test_abc.png',
+  secure_url: `https://res.cloudinary.com/${TEST_CLOUD_NAME}/image/upload/lumio/schools/logos/test_abc.png`,
   width:      300,
   height:     300,
   format:     'png',
@@ -80,6 +87,9 @@ const LOGO_METADATA: LogoMetadata = {
   height:     CLOUDINARY_RESPONSE.height,
   format:     CLOUDINARY_RESPONSE.format,
 };
+
+const EXPECTED_CLOUDINARY_URL =
+  `https://api.cloudinary.com/v1_1/${TEST_CLOUD_NAME}/image/upload`;
 
 /* ── validateLogoFile ─────────────────────────────────────────── */
 
@@ -148,6 +158,20 @@ describe('requestBrandingSignature', () => {
     expect(result).toEqual(SIGNED_PARAMS);
   });
 
+  it('normalises camelCase apiKey from the backend signature response', async () => {
+    mockPost.mockResolvedValueOnce({
+      data: {
+        apiKey:    SIGNED_PARAMS.api_key,
+        signature: SIGNED_PARAMS.signature,
+        timestamp: SIGNED_PARAMS.timestamp,
+        folder:    SIGNED_PARAMS.folder,
+      },
+    });
+
+    const result = await requestBrandingSignature();
+    expect(result).toEqual(SIGNED_PARAMS);
+  });
+
   it('propagates errors thrown by apiClient', async () => {
     mockPost.mockRejectedValueOnce(new Error('Unauthorized'));
     await expect(requestBrandingSignature()).rejects.toThrow('Unauthorized');
@@ -204,8 +228,15 @@ describe('saveBranding', () => {
 describe('uploadToCloudinary', () => {
   const fetchSpy = vi.fn();
 
-  beforeEach(() => vi.stubGlobal('fetch', fetchSpy));
-  afterEach(() => { vi.unstubAllGlobals(); fetchSpy.mockReset(); });
+  beforeEach(() => {
+    vi.stubGlobal('fetch', fetchSpy);
+    vi.stubEnv('NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME', TEST_CLOUD_NAME);
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+    fetchSpy.mockReset();
+  });
 
   it('POSTs to the correct Cloudinary upload URL', async () => {
     fetchSpy.mockResolvedValueOnce(
@@ -213,9 +244,25 @@ describe('uploadToCloudinary', () => {
     );
     await uploadToCloudinary(makeFile('logo.png', 'image/png'), SIGNED_PARAMS);
     const [url] = fetchSpy.mock.calls[0] as [string];
-    expect(url).toBe(
-      `https://api.cloudinary.com/v1_1/${SIGNED_PARAMS.cloud_name}/image/upload`,
+    expect(url).toBe(EXPECTED_CLOUDINARY_URL);
+  });
+
+  it('builds the URL from NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME, not from signed params', async () => {
+    fetchSpy.mockResolvedValueOnce(
+      new Response(JSON.stringify(CLOUDINARY_RESPONSE), { status: 200 }),
     );
+    await uploadToCloudinary(makeFile('logo.png', 'image/png'), SIGNED_PARAMS);
+    const [url] = fetchSpy.mock.calls[0] as [string];
+    expect(url).toContain(TEST_CLOUD_NAME);
+    expect(url).toContain('/image/upload');
+  });
+
+  it('throws when NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME is not set', async () => {
+    vi.unstubAllEnvs();
+    delete process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
+    await expect(
+      uploadToCloudinary(makeFile('logo.png', 'image/png'), SIGNED_PARAMS),
+    ).rejects.toThrow(/NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME/);
   });
 
   it('includes all signed params in the FormData body', async () => {
@@ -232,6 +279,7 @@ describe('uploadToCloudinary', () => {
     expect(body.get('signature')).toBe(SIGNED_PARAMS.signature);
     expect(body.get('timestamp')).toBe(String(SIGNED_PARAMS.timestamp));
     expect(body.get('folder')).toBe(SIGNED_PARAMS.folder);
+    expect(body.get('tags')).toBe(SIGNED_PARAMS.tags);
   });
 
   it('returns exactly the five required fields and strips extras', async () => {
@@ -280,13 +328,18 @@ describe('uploadSchoolLogo', () => {
   beforeEach(() => {
     mockPost.mockReset();
     vi.stubGlobal('fetch', fetchSpy);
+    vi.stubEnv('NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME', TEST_CLOUD_NAME);
   });
-  afterEach(() => { vi.unstubAllGlobals(); fetchSpy.mockReset(); });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+    fetchSpy.mockReset();
+  });
 
   function setupHappyPath() {
     // Call 1 (Axios): POST /registration/drafts/branding/signature
     mockPost.mockResolvedValueOnce({ data: SIGNED_PARAMS });
-    // Call 2 (fetch): POST Cloudinary /image/upload
+    // Call 2 (fetch): POST https://api.cloudinary.com/v1_1/…/image/upload
     fetchSpy.mockResolvedValueOnce(
       new Response(JSON.stringify(CLOUDINARY_RESPONSE), { status: 200 }),
     );
@@ -312,7 +365,7 @@ describe('uploadSchoolLogo', () => {
     // fetch was called once (Cloudinary)
     expect(fetchSpy).toHaveBeenCalledTimes(1);
     const [cloudinaryUrl] = fetchSpy.mock.calls[0] as [string];
-    expect(cloudinaryUrl).toContain('api.cloudinary.com');
+    expect(cloudinaryUrl).toBe(EXPECTED_CLOUDINARY_URL);
   });
 
   it('maps snake_case Cloudinary fields to camelCase for the backend save', async () => {
@@ -329,11 +382,11 @@ describe('uploadSchoolLogo', () => {
     });
   });
 
-  it('uploads to the cloud_name returned by the signature endpoint', async () => {
+  it('uploads to the cloud name from NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME', async () => {
     setupHappyPath();
     await uploadSchoolLogo(makeFile('logo.png', 'image/png'));
     const [cloudinaryUrl] = fetchSpy.mock.calls[0] as [string];
-    expect(cloudinaryUrl).toContain(SIGNED_PARAMS.cloud_name);
+    expect(cloudinaryUrl).toContain(TEST_CLOUD_NAME);
   });
 
   it('throws and halts when the signature step fails', async () => {

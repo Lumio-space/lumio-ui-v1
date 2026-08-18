@@ -45,11 +45,18 @@ export interface AdministratorsPayload {
 
 
 export interface BrandingSignatureResponse {
-  cloud_name: string;
   api_key:    string;
   signature:  string;
   timestamp:  number;
   folder:     string;
+  tags:       string;
+}
+
+export interface BrandingSignatureRawResponse {
+  api_key?:  string;
+  signature: string;
+  timestamp: number;
+  folder:    string;
 }
 
 export interface LogoMetadata {
