@@ -30,12 +30,12 @@ describe('loginSchema', () => {
     expect(loginSchema.safeParse({ ...VALID, password: '' }).success).toBe(false);
   });
 
-  it('rejects password shorter than 6 characters', () => {
-    expect(loginSchema.safeParse({ ...VALID, password: 'abc' }).success).toBe(false);
+  it('rejects password shorter than 8 characters', () => {
+    expect(loginSchema.safeParse({ ...VALID, password: 'abc1234' }).success).toBe(false);
   });
 
-  it('accepts password exactly 6 characters', () => {
-    expect(loginSchema.safeParse({ ...VALID, password: 'abc123' }).success).toBe(true);
+  it('accepts password exactly 8 characters', () => {
+    expect(loginSchema.safeParse({ ...VALID, password: 'abc12345' }).success).toBe(true);
   });
 
   it('accepts rememberMe: false', () => {
