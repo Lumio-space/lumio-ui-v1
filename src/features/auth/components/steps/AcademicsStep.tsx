@@ -60,7 +60,7 @@ export function AcademicsStep() {
                 <option value="">Select…</option>
                 <option value="letter">Letter (A – F)</option>
                 <option value="gpa">GPA (4.0 scale)</option>
-                <option value="percent">Percentage (0 – 100)</option>
+                <option value="percentage">Percentage (0 – 100)</option>
               </NativeSelect>
             </FormControl>
             <FormMessage />
