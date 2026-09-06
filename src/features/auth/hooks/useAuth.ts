@@ -5,13 +5,19 @@ import { useRouter } from 'next/navigation'
 import { useAuthStore } from '@/stores/auth.store'
 
 import {
-  loginUser,
-  logoutUser,
-  forgotPassword,
+    loginUser,
+    logoutUser,
+    forgotPassword,
+    resetPassword
 } from '../services/auth.api'
 
 import type { LoginFormValues } from '@/features/auth/schemas/login.schema'
 import type { ForgotPasswordFormValues } from '@/features/auth/schemas/forgot-password.schema'
+import type {ResetPasswordFormValues} from "@/features/auth/schemas/reset-password.schema";
+
+type ResetPasswordMutationValues = Pick<ResetPasswordFormValues, 'newPassword'> & {
+  token: string
+}
 
 function setAuthCookie(token: string, remember: boolean) {
   const maxAge = remember ? 60 * 60 * 24 * 30 : 60 * 60 * 24
@@ -71,6 +77,24 @@ export function useForgotPassword(options?: {
   return useMutation({
     mutationFn: (values: ForgotPasswordFormValues) =>
         forgotPassword(values),
+
+    onSuccess: () => {
+      options?.onSuccess?.()
+    },
+
+    onError: () => {
+      options?.onError?.()
+    },
+  })
+}
+
+export function useResetPassword(options?: {
+  onSuccess?: () => void
+  onError?: () => void
+}) {
+  return useMutation({
+    mutationFn: ( values: ResetPasswordMutationValues) =>
+        resetPassword(values.token, values),
 
     onSuccess: () => {
       options?.onSuccess?.()
