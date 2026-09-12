@@ -61,7 +61,7 @@ describe('Regression #1 — validation messages visible', () => {
     await user.type(screen.getByPlaceholderText('••••••••'), 'abc')
     await user.tab()
     await waitFor(() => {
-      expect(screen.getByText('Password must be at least 6 characters')).toBeInTheDocument()
+      expect(screen.getByText('Password must be at least 8 characters')).toBeInTheDocument()
     })
   })
 
