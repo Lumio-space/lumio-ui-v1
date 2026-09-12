@@ -18,7 +18,7 @@ import {
 import { useAuthStore }                      from '@/stores/auth.store';
 import { useSchoolStore }                    from '@/stores/school.store';
 import { useOnboardingStore, isDraftExpired } from '@/stores/onboarding.store';
-import { setAuthCookie }                     from '@/features/auth/hooks/useAuth';
+import { setAuthCookie, setSchoolCookie } from '@/features/auth/hooks/useAuth';
 
 import {
   useInitializeDraft,
@@ -237,12 +237,15 @@ export function OnboardingWizard() {
           onSuccess: () => {
             complete(undefined, {
               onSuccess: (data) => {
-                setAuthCookie(data.token, false);
+                const token = (data as { token?: string; accessToken?: string }).token ?? (data as { token?: string; accessToken?: string }).accessToken;
+                setAuthCookie(token, false);
+                if (data.schoolId) setSchoolCookie(data.schoolId, false);
                 setAuthenticated(true);
                 setUser({
-                  name:  values.adminFullName,
-                  email: values.adminEmail,
-                  role:  'SCHOOL_ADMIN',
+                  name:     values.adminFullName,
+                  email:    values.adminEmail,
+                  role:     'SCHOOL_ADMIN',
+                  schoolId: data.schoolId,
                 });
                 if (values.logoDataUrl) setLogo(values.logoDataUrl);
                 setSchoolName(values.name);

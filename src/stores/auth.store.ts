@@ -9,9 +9,10 @@ const safeStorage = {
 }
 
 interface AuthUser {
-  name:  string
-  email: string
-  role?: string
+  name:      string
+  email:     string
+  role?:     string
+  schoolId?: string
 }
 
 interface AuthState {

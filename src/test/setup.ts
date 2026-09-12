@@ -31,17 +31,28 @@ vi.mock('next/navigation', () => ({
 
 // Zustand store mocks
 
-vi.mock('@/stores/auth.store', () => ({
-  useAuthStore: (
-    selector: (s: {
-      role: string; setRole: () => void;
-      isAuthenticated: boolean; setAuthenticated: () => void;
-    }) => unknown
-  ) => selector({
-    role: 'admin', setRole: vi.fn(),
-    isAuthenticated: false, setAuthenticated: vi.fn(),
-  }),
-}));
+vi.mock('@/stores/auth.store', () => {
+  const mockAuthState = {
+    role: 'admin',
+    setRole: vi.fn(),
+    isAuthenticated: false,
+    setAuthenticated: vi.fn((v) => { mockAuthState.isAuthenticated = v; }),
+    user: null as { name: string; email: string; role?: string; schoolId?: string } | null,
+    setUser: vi.fn((u) => { mockAuthState.user = u; }),
+    clearUser: vi.fn(() => { mockAuthState.user = null; }),
+  };
+
+  return {
+    useAuthStore: Object.assign(
+      (selector: (s: typeof mockAuthState) => unknown) =>
+        typeof selector === 'function' ? selector(mockAuthState) : mockAuthState,
+      {
+        getState: () => mockAuthState,
+        setState: (partial: Partial<typeof mockAuthState>) => Object.assign(mockAuthState, partial),
+      }
+    ),
+  };
+});
 
 vi.mock('@/stores/ui.store', () => ({
   useUIStore: (
