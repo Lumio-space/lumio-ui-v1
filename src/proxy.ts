@@ -7,13 +7,14 @@ const PROTECTED_PREFIXES = ['/dashboard', '/students', '/teachers', '/classes',
   '/announcements', '/settings'];
 
 /** Routes only accessible when NOT authenticated */
-const AUTH_ONLY_PREFIXES = ['/login', '/onboarding', 'forgot-password', 'reset-password'];
+const AUTH_ONLY_PREFIXES = ['/login', '/onboarding', '/forgot-password'];
 
 export function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
   // Phase 2: replace with next-auth getToken()
-  const token = req.cookies.get('token')?.value;
+  const rawToken = req.cookies.get('token')?.value;
+  const token    = rawToken && rawToken !== 'undefined' && rawToken !== 'null' ? rawToken : null;
 
   const isProtected = PROTECTED_PREFIXES.some((p) => pathname.startsWith(p));
   const isAuthOnly  = AUTH_ONLY_PREFIXES.some((p) => pathname.startsWith(p));

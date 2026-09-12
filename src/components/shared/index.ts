@@ -7,3 +7,4 @@ export { ImageUpload }    from './ImageUpload';
 export type { ImageUploadProps } from './ImageUpload';
 export { Progress, ProgressRing } from './Progress';
 export { NativeSelect }  from './NativeSelect';
+export { Dropdown, DropdownItem, DropdownDivider, DropdownLabel } from './Dropdown';
