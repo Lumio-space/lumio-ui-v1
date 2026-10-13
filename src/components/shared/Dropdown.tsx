@@ -13,6 +13,7 @@ import { cn } from '@/lib/utils';
 
 export interface DropdownProps {
   trigger: React.ReactNode;
+  asChild?: boolean;
   children: React.ReactNode;
   align?: 'left' | 'right';
   className?: string;
@@ -21,6 +22,7 @@ export interface DropdownProps {
 
 export function Dropdown({
   trigger,
+  asChild = false,
   children,
   align = 'right',
   className,
@@ -48,8 +50,25 @@ export function Dropdown({
     };
   }, []);
 
-  return (
-    <div ref={ref} className={cn('relative', className)}>
+  const isButtonTrigger =
+    React.isValidElement(trigger) && trigger.type === 'button';
+  const shouldClone = asChild || isButtonTrigger;
+
+  let triggerNode: React.ReactNode;
+  if (shouldClone && React.isValidElement<React.HTMLAttributes<HTMLElement>>(trigger)) {
+    const originalOnClick = trigger.props.onClick;
+    triggerNode = React.cloneElement(trigger, {
+      onClick: (e: React.MouseEvent<HTMLElement>) => {
+        originalOnClick?.(e);
+        if (!e.defaultPrevented) {
+          setOpen((o) => !o);
+        }
+      },
+      'aria-haspopup': 'menu',
+      'aria-expanded': open,
+    });
+  } else {
+    triggerNode = (
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
@@ -59,6 +78,12 @@ export function Dropdown({
       >
         {trigger}
       </button>
+    );
+  }
+
+  return (
+    <div ref={ref} className={cn('relative', className)}>
+      {triggerNode}
       <AnimatePresence>
         {open && (
           <motion.div

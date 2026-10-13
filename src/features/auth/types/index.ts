@@ -12,12 +12,14 @@ export interface LoginResponse {
     role?:      Role;
     avatarUrl?: string;
     schoolId?:  string;
+    classId?:   string;
   };
   memberships?: Array<{
     schoolId:   string;
     role:       Role | string;
     schoolName: string;
     status:     string;
+    classId?:   string;
   }>;
 }
 

@@ -19,13 +19,15 @@ import { CreateClassForm }                       from '@/features/classes/compon
 // Hoisted mock handles — vi.fn() pattern matches LoginForm / ForgotPasswordForm
 // ---------------------------------------------------------------------------
 
-const { mockMutate, mockUseCreateClass } = vi.hoisted(() => ({
+const { mockMutate, mockUseCreateClass, mockUseClasses } = vi.hoisted(() => ({
   mockMutate:         vi.fn(),
   mockUseCreateClass: vi.fn(),
+  mockUseClasses:     vi.fn(),
 }));
 
 vi.mock('@/features/classes/hooks', () => ({
   useCreateClass: () => mockUseCreateClass(),
+  useClasses: () => mockUseClasses(),
 }));
 
 // ---------------------------------------------------------------------------
@@ -44,8 +46,11 @@ function stubHook(overrides: { isPending?: boolean; error?: Error | null } = {})
 beforeEach(() => {
   mockMutate.mockReset();
   mockUseCreateClass.mockReset();
+  mockUseClasses.mockReset();
+  mockUseClasses.mockReturnValue({ data: [] });
   stubHook();
 });
+
 
 function renderForm(onSuccess = vi.fn()) {
   return renderWithProviders(<CreateClassForm onSuccess={onSuccess} />);
@@ -59,7 +64,7 @@ async function fillValidForm(overrides: { room?: string; capacity?: string } = {
     expect(screen.getByLabelText(/class level/i)).not.toBeDisabled()
   );
   fireEvent.change(screen.getByLabelText(/class level/i), {
-    target: { value: 'Primary 1' },
+    target: { value: 'Primary1' },
   });
   fireEvent.change(screen.getByLabelText(/class arm/i), {
     target: { value: 'A' },
@@ -168,7 +173,7 @@ describe('CreateClassForm', () => {
       });
     });
 
-    it('populates Nursery 1, Nursery 2, Kindergarten options when Nursery is selected', async () => {
+    it('populates Nursery 1, Nursery 2, Nursery 3 options when Nursery is selected', async () => {
       renderForm();
       fireEvent.change(screen.getByLabelText(/school level/i), {
         target: { value: 'nursery' },
@@ -176,7 +181,7 @@ describe('CreateClassForm', () => {
       await waitFor(() => {
         const sel = screen.getByLabelText(/class level/i);
         expect(sel).toContainHTML('Nursery 1');
-        expect(sel).toContainHTML('Kindergarten');
+        expect(sel).toContainHTML('Nursery 3');
       });
     });
 
@@ -190,11 +195,11 @@ describe('CreateClassForm', () => {
         expect(screen.getByLabelText(/class level/i)).not.toBeDisabled()
       );
       fireEvent.change(screen.getByLabelText(/class level/i), {
-        target: { value: 'Primary 1' },
+        target: { value: 'Primary1' },
       });
       expect(
         screen.getByLabelText<HTMLSelectElement>(/class level/i).value
-      ).toBe('Primary 1');
+      ).toBe('Primary1');
 
       // Switch to Junior Secondary — 'Primary 1' is not a valid JSS grade
       fireEvent.change(screen.getByLabelText(/school level/i), {
@@ -256,7 +261,7 @@ describe('CreateClassForm', () => {
         expect(screen.getByLabelText(/class level/i)).not.toBeDisabled()
       );
       fireEvent.change(screen.getByLabelText(/class level/i), {
-        target: { value: 'Primary 1' },
+        target: { value: 'Primary1' },
       });
 
       await act(async () => {
@@ -281,7 +286,7 @@ describe('CreateClassForm', () => {
         expect(screen.getByLabelText(/class level/i)).not.toBeDisabled()
       );
       fireEvent.change(screen.getByLabelText(/class level/i), {
-        target: { value: 'Primary 1' },
+        target: { value: 'Primary1' },
       });
       fireEvent.change(screen.getByLabelText(/class arm/i), {
         target: { value: 'A' },
@@ -312,7 +317,7 @@ describe('CreateClassForm', () => {
         expect(screen.getByLabelText(/class level/i)).not.toBeDisabled()
       );
       fireEvent.change(screen.getByLabelText(/class level/i), {
-        target: { value: 'Primary 1' },
+        target: { value: 'Primary1' },
       });
       fireEvent.change(screen.getByLabelText(/class arm/i), {
         target: { value: 'A' },
@@ -363,7 +368,7 @@ describe('CreateClassForm', () => {
       await waitFor(() =>
         expect(mockMutate).toHaveBeenCalledWith(
           expect.objectContaining({
-            gradeLevel:   'Primary 1',
+            gradeLevel:   'Primary1',
             gradeSection: 'A',
             schoolLevel:  'primary',
             room:         101,
@@ -414,7 +419,7 @@ describe('CreateClassForm', () => {
       );
     });
 
-    it('submits SSS 1 value when SSS 1 is chosen', async () => {
+    it('submits SSS1 value when SSS 1 is chosen', async () => {
       const { container } = renderForm();
       fireEvent.change(screen.getByLabelText(/school level/i), {
         target: { value: 'senior_secondary' },
@@ -423,7 +428,7 @@ describe('CreateClassForm', () => {
         expect(screen.getByLabelText(/class level/i)).not.toBeDisabled()
       );
       fireEvent.change(screen.getByLabelText(/class level/i), {
-        target: { value: 'SSS 1' },
+        target: { value: 'SSS1' },
       });
       fireEvent.change(screen.getByLabelText(/class arm/i), {
         target: { value: 'B' },
@@ -440,7 +445,7 @@ describe('CreateClassForm', () => {
       await waitFor(() =>
         expect(mockMutate).toHaveBeenCalledWith(
           expect.objectContaining({
-            gradeLevel:   'SSS 1',
+            gradeLevel:   'SSS1',
             gradeSection: 'B',
             schoolLevel:  'senior_secondary',
             room:         205,
@@ -501,10 +506,17 @@ describe('CreateClassForm', () => {
   // ── Backend error display ──────────────────────────────────────────────────
 
   describe('backend error display', () => {
-    it('shows an inline alert when the mutation returns an Error', () => {
-      stubHook({ error: new Error('A class with this combination already exists.') });
+    it('shows an inline alert when the mutation returns a general non-duplicate Error', () => {
+      stubHook({ error: new Error('Internal server error.') });
       renderForm();
       expect(screen.getByRole('alert')).toBeInTheDocument();
+      expect(screen.getByText(/internal server error/i)).toBeInTheDocument();
+    });
+
+    it('shows a centered pop-up dialog when the mutation returns a duplicate class error', () => {
+      stubHook({ error: new Error('A class with this combination already exists.') });
+      renderForm();
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
       expect(
         screen.getByText(/a class with this combination already exists/i)
       ).toBeInTheDocument();
@@ -523,6 +535,78 @@ describe('CreateClassForm', () => {
       expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     });
   });
+
+  // ── Duplicate ARM & Room validation ────────────────────────────────────────
+
+  describe('duplicate ARM and Room validation', () => {
+    it('detects existing class ARM, shows inline warning, and triggers centered pop-up on submit', async () => {
+      mockUseClasses.mockReturnValue({
+        data: [
+          {
+            id: 'c1',
+            grade: 'Primary1',
+            section: 'A',
+            level: 'primary',
+            room: 101,
+            capacity: 30,
+          },
+        ],
+      });
+
+      const { container } = renderForm();
+      await fillValidForm(); // Primary, Primary 1, Section A, Room 101
+
+      // Expect inline warning under ARM
+      expect(screen.getByText(/arm "a" is already in use/i)).toBeInTheDocument();
+
+      // Submit form
+      await act(async () => {
+        fireEvent.submit(container.querySelector('form')!);
+      });
+
+      // Mutation should NOT be called
+      expect(mockMutate).not.toHaveBeenCalled();
+
+      // Centered pop-up should be visible
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+      expect(screen.getByText(/class arm already exists/i)).toBeInTheDocument();
+    });
+
+    it('detects existing room number, shows inline warning, and triggers centered pop-up on submit', async () => {
+      mockUseClasses.mockReturnValue({
+        data: [
+          {
+            id: 'c2',
+            grade: 'Primary2',
+            section: 'B',
+            level: 'primary',
+            room: 101,
+            capacity: 30,
+          },
+        ],
+      });
+
+      const { container } = renderForm();
+      // Select Primary 1, section A (different arm), but room 101 (duplicate room)
+      await fillValidForm({ room: '101' });
+
+      // Expect inline warning under Room
+      expect(screen.getByText(/room 101 is already assigned to an existing class/i)).toBeInTheDocument();
+
+      // Submit form
+      await act(async () => {
+        fireEvent.submit(container.querySelector('form')!);
+      });
+
+      // Mutation should NOT be called
+      expect(mockMutate).not.toHaveBeenCalled();
+
+      // Centered pop-up should be visible
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+      expect(screen.getByText(/room \/ location already in use/i)).toBeInTheDocument();
+    });
+  });
+
 
   // ── Pending / duplicate-submission prevention ──────────────────────────────
 
@@ -556,4 +640,107 @@ describe('CreateClassForm', () => {
       expect(submitBtn.querySelector('svg[aria-hidden="true"]')).not.toBeNull();
     });
   });
+
+  describe('guidance notices', () => {
+    it('renders the Form Teacher invitation explanation and link to /teachers and /subjects', () => {
+      renderForm();
+      expect(
+        screen.getByText(/form teachers are assigned from the/i)
+      ).toBeInTheDocument();
+      const teachersLink = screen.getByRole('link', { name: /teachers/i });
+      expect(teachersLink).toBeInTheDocument();
+      expect(teachersLink).toHaveAttribute('href', '/teachers');
+      const subjectsLink = screen.getByRole('link', { name: /subjects/i });
+      expect(subjectsLink).toBeInTheDocument();
+      expect(subjectsLink).toHaveAttribute('href', '/subjects');
+    });
+  });
+
+  // ── Senior Secondary Department selection & Live Preview ───────────────────
+
+  describe('department selection & live preview', () => {
+    it('does NOT show Department / Track select for Primary level', () => {
+      renderForm();
+      fireEvent.change(screen.getByLabelText(/school level/i), {
+        target: { value: 'primary' },
+      });
+      expect(screen.queryByLabelText(/department \/ track/i)).not.toBeInTheDocument();
+    });
+
+    it('shows Department / Track select when Senior Secondary is chosen', async () => {
+      renderForm();
+      fireEvent.change(screen.getByLabelText(/school level/i), {
+        target: { value: 'senior_secondary' },
+      });
+      await waitFor(() => {
+        expect(screen.getByLabelText(/department \/ track/i)).toBeInTheDocument();
+      });
+    });
+
+    it('submits department in payload when selected for Senior Secondary', async () => {
+      const { container } = renderForm();
+      fireEvent.change(screen.getByLabelText(/school level/i), {
+        target: { value: 'senior_secondary' },
+      });
+      await waitFor(() =>
+        expect(screen.getByLabelText(/class level/i)).not.toBeDisabled()
+      );
+      fireEvent.change(screen.getByLabelText(/class level/i), {
+        target: { value: 'SSS2' },
+      });
+      fireEvent.change(screen.getByLabelText(/class arm/i), {
+        target: { value: 'A' },
+      });
+      await waitFor(() =>
+        expect(screen.getByLabelText(/department \/ track/i)).toBeInTheDocument()
+      );
+      fireEvent.change(screen.getByLabelText(/department \/ track/i), {
+        target: { value: 'Science' },
+      });
+      fireEvent.change(screen.getByLabelText(/room/i), {
+        target: { value: '301' },
+      });
+      fireEvent.change(screen.getByLabelText(/capacity/i), {
+        target: { value: '32' },
+      });
+
+      await act(async () => {
+        fireEvent.submit(container.querySelector('form')!);
+      });
+
+      await waitFor(() =>
+        expect(mockMutate).toHaveBeenCalledWith(
+          expect.objectContaining({
+            schoolLevel: 'senior_secondary',
+            gradeLevel: 'SSS2',
+            gradeSection: 'A',
+            department: 'Science',
+            room: 301,
+            capacity: 32,
+          }),
+          expect.anything()
+        )
+      );
+    });
+
+    it('displays live preview with composed name', async () => {
+      renderForm();
+      fireEvent.change(screen.getByLabelText(/school level/i), {
+        target: { value: 'primary' },
+      });
+      await waitFor(() =>
+        expect(screen.getByLabelText(/class level/i)).not.toBeDisabled()
+      );
+      fireEvent.change(screen.getByLabelText(/class level/i), {
+        target: { value: 'Primary1' },
+      });
+      fireEvent.change(screen.getByLabelText(/class arm/i), {
+        target: { value: 'B' },
+      });
+
+      expect(screen.getByText('This class will be')).toBeInTheDocument();
+      expect(screen.getByText('Primary 1 B')).toBeInTheDocument();
+    });
+  });
 });
+

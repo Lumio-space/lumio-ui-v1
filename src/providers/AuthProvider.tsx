@@ -6,7 +6,6 @@ import { useAuthStore } from '@/stores/auth.store';
 
 interface AuthProviderProps {
   children: ReactNode;
- 
   session?: {
     user?: {
       role?: string;
@@ -15,11 +14,13 @@ interface AuthProviderProps {
 }
 
 export function AuthProvider({ children, session }: AuthProviderProps) {
-  const setAuthenticated = useAuthStore((s: { setAuthenticated: (v: boolean) => void }) => s.setAuthenticated);
+  const setAuthenticated = useAuthStore((s) => s.setAuthenticated);
 
+  // If server session is explicitly provided, synchronize it
   useEffect(() => {
-   
-    setAuthenticated(!!session?.user);
+    if (session !== undefined) {
+      setAuthenticated(!!session?.user);
+    }
   }, [session, setAuthenticated]);
 
   return <>{children}</>;

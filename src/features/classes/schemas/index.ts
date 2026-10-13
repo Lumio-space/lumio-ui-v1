@@ -45,6 +45,24 @@ export const createClassSchema = z.object({
       .int('Capacity must be a whole number.')
       .positive('Capacity must be greater than 0.'),
   ),
+
+  department: z.string().optional(),
+}).superRefine((data, ctx) => {
+  if (data.schoolLevel === 'senior_secondary') {
+    if (!data.department || !['Science', 'Arts', 'Commercial'].includes(data.department)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Please select a department for Senior Secondary.',
+        path: ['department'],
+      });
+    }
+  } else if (data.department && data.department.trim() !== '') {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Department can only be set for senior secondary classes.',
+      path: ['department'],
+    });
+  }
 });
 
 export type CreateClassFormInput = z.input<typeof createClassSchema>;

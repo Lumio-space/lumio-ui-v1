@@ -8,7 +8,7 @@ import { Logo } from '@/components/Logo';
 import { NAV_ITEMS } from '@/config/navigation';
 import { useAuthStore } from '@/stores/auth.store';
 import { useSchoolStore } from '@/stores/school.store';
-import { LEGACY_ROLE_LABELS } from '@/types/auth.types';
+import { CANONICAL_ROLE_LABELS } from '@/types/auth.types';
 import { cn } from '@/lib/utils';
 
 interface SidebarProps {
@@ -72,7 +72,7 @@ export function Sidebar({ mobileOpen, onClose }: SidebarProps) {
         </div>
         <div className="min-w-0">
           <p className="truncate text-sm font-semibold text-white">{displayName}</p>
-          <p className="text-xs text-indigo-300">{LEGACY_ROLE_LABELS[role]} workspace</p>
+          <p className="text-xs text-indigo-300">{CANONICAL_ROLE_LABELS[role]} workspace</p>
         </div>
       </div>
 

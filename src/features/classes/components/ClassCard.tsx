@@ -17,6 +17,7 @@
 import {
   MapPinIcon,
   UsersIcon,
+  BookOpenIcon,
   MoreVerticalIcon,
   EyeIcon,
   PencilIcon,
@@ -34,6 +35,9 @@ import {
   GRADE_LEVEL_LABELS,
   SCHOOL_LEVEL_LABELS,
   SCHOOL_LEVEL_TONES,
+  DEPARTMENT_TONES,
+  sectionHasDepartment,
+  composeClassName,
 } from '../constants';
 import type { ClassRecord, SchoolLevel } from '../types';
 
@@ -50,14 +54,22 @@ export function ClassCard({
   onEdit,
   onDelete,
 }: ClassCardProps) {
-  const { grade, section, level, capacity, room, teacher, students = 0, subjects = [] } = classRecord;
+  const { grade, section, level, capacity, room, teacher, formTeacher, formTeacherName, department, students = 0, subjects = [] } = classRecord;
+  const displayTeacher =
+    teacher ||
+    formTeacherName ||
+    (formTeacher && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(formTeacher)
+      ? formTeacher
+      : undefined);
 
   // level may be any string from the DB; cast only after guard
   const knownLevel  = level as SchoolLevel;
   const levelLabel  = SCHOOL_LEVEL_LABELS[knownLevel] ?? level;
   const badgeTone   = SCHOOL_LEVEL_TONES[knownLevel] ?? 'slate';
   const gradeLabel  = GRADE_LEVEL_LABELS[grade] ?? grade;
-  const displayName = `${gradeLabel} ${section}`;
+  const hasValidDept = Boolean(department && department !== 'Nill');
+  const displayName = composeClassName(gradeLabel, department, section);
+  const needsDepartment = sectionHasDepartment(level) && !hasValidDept;
 
   const fill = capacity > 0 ? Math.min(100, Math.round((students / capacity) * 100)) : 0;
 
@@ -115,65 +127,100 @@ export function ClassCard({
       </div>
 
       {/* Card body */}
-      <div className="flex flex-1 flex-col justify-between p-5">
-        <div className="space-y-4">
-          {/* Form Teacher row */}
-          <div className="flex items-center gap-3">
-            <Avatar name={teacher || 'Unassigned'} size="sm" />
-            <div className="min-w-0 flex-1">
-              <p className="text-xs text-slate-400">Form Teacher</p>
-              <p className="truncate text-sm font-semibold text-slate-800">
-                {teacher || 'Not assigned'}
-              </p>
-            </div>
-            {teacher ? (
-              <Badge tone="green" dot>
-                Active
+      <div className="flex flex-1 flex-col p-5">
+        {/* Class properties — level, section and department are distinct */}
+        <div className="flex flex-wrap items-center gap-1.5">
+          <Badge tone={badgeTone}>{levelLabel}</Badge>
+          {section && (
+            <Badge tone="slate">Section {section}</Badge>
+          )}
+          {hasValidDept && sectionHasDepartment(level) ? (
+            <Badge tone={DEPARTMENT_TONES[department as keyof typeof DEPARTMENT_TONES] ?? 'indigo'} dot>
+              {department}
+            </Badge>
+          ) : (
+            needsDepartment && (
+              <Badge tone="gold" dot>
+                Department not configured
               </Badge>
+            )
+          )}
+        </div>
+
+        {/* Form Teacher row */}
+        <div className="mt-4 flex items-center gap-3">
+          <Avatar name={displayTeacher || 'Unassigned'} size="sm" />
+          <div className="min-w-0 flex-1">
+            <p className="text-xs text-slate-400">Form Teacher</p>
+            <p className="truncate text-sm font-semibold text-slate-800">
+              {displayTeacher || 'Not assigned'}
+            </p>
+          </div>
+          {displayTeacher ? (
+            <Badge tone="green" dot>
+              Active
+            </Badge>
+          ) : (
+            <Badge tone="slate">Unassigned</Badge>
+          )}
+        </div>
+
+        {/* Capacity metric and progress */}
+        <div className="mt-4">
+          <div className="mb-1.5 flex items-center justify-between text-sm">
+            <span className="flex items-center gap-1 text-slate-500">
+              <UsersIcon className="h-4 w-4" aria-hidden="true" />
+              Capacity
+            </span>
+            <span className="font-semibold text-slate-700">
+              {students}/{capacity}
+            </span>
+          </div>
+          <Progress
+            value={fill}
+            tone={fill > 90 ? 'gold' : 'purple'}
+            size="sm"
+            label={`${displayName} capacity ${students} of ${capacity}`}
+          />
+        </div>
+
+        {/* Subject count & badges */}
+        <div className="mt-4 space-y-2">
+          <p className="flex items-center gap-1.5 text-sm text-slate-500">
+            <BookOpenIcon className="h-4 w-4 text-slate-400" aria-hidden="true" />
+            {subjects.length === 0 ? (
+              <span className="text-slate-400">No subjects assigned</span>
             ) : (
-              <Badge tone="slate">Unassigned</Badge>
+              <>
+                <span className="font-semibold text-slate-700">
+                  {subjects.length}
+                </span>{' '}
+                subject{subjects.length === 1 ? '' : 's'}
+              </>
             )}
-          </div>
-
-          {/* Capacity metric and progress */}
-          <div>
-            <div className="mb-1.5 flex items-center justify-between text-sm">
-              <span className="flex items-center gap-1 text-slate-500">
-                <UsersIcon className="h-4 w-4" aria-hidden="true" />
-                Capacity
-              </span>
-              <span className="font-semibold text-slate-700">
-                {students}/{capacity}
-              </span>
+          </p>
+          {subjects.length > 0 && (
+            <div className="flex flex-wrap gap-1">
+              {subjects.map((s) => (
+                <Badge key={s} tone="slate">
+                  {s}
+                </Badge>
+              ))}
             </div>
-            <Progress
-              value={fill}
-              tone={fill > 90 ? 'gold' : 'purple'}
-              size="sm"
-              label={`${displayName} capacity ${students} of ${capacity}`}
-            />
-          </div>
-
-          {/* Badges: School Level and subjects */}
-          <div className="flex flex-wrap gap-1.5">
-            <Badge tone={badgeTone}>{levelLabel}</Badge>
-            {subjects.map((s) => (
-              <Badge key={s} tone="slate">
-                {s}
-              </Badge>
-            ))}
-          </div>
+          )}
         </div>
 
         {/* View class button */}
-        <Button
-          variant="secondary"
-          size="sm"
-          className="mt-4 w-full"
-          onClick={() => onViewDetails?.(classRecord)}
-        >
-          View class
-        </Button>
+        <div className="mt-auto pt-4">
+          <Button
+            variant="secondary"
+            size="sm"
+            className="w-full"
+            onClick={() => onViewDetails?.(classRecord)}
+          >
+            View class
+          </Button>
+        </div>
       </div>
     </div>
   );

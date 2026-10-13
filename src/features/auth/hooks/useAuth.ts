@@ -69,16 +69,21 @@ export function useLogin() {
       const schoolId =
         user?.schoolId ||
         data.memberships?.[0]?.schoolId
+      const classId =
+        user?.classId ||
+        data.memberships?.[0]?.classId
 
       if (schoolId) {
         setSchoolCookie(schoolId, variables.rememberMe ?? false)
       }
 
       setUser({
+        id: user?.id,
         name,
         email: user?.email ?? '',
         role,
         schoolId,
+        classId,
       })
 
       const callbackUrl = searchParams?.get('callbackUrl')
@@ -93,20 +98,17 @@ export function useLogin() {
 
 export function useLogout() {
   const router = useRouter()
-  const setAuthenticated = useAuthStore((s) => s.setAuthenticated)
   const clearUser = useAuthStore((s) => s.clearUser)
 
   return useMutation({
     mutationFn: logoutUser,
     onSuccess: () => {
       clearAuthCookie()
-      setAuthenticated(false)
       clearUser()
       router.push('/login')
     },
     onError: () => {
       clearAuthCookie()
-      setAuthenticated(false)
       clearUser()
       router.push('/login')
     },
@@ -149,6 +151,5 @@ export function useResetPassword(options?: {
   })
 }
 
-
 /** Cookie helpers — exported so the OnboardingWizard can set auth on completion. */
-export { setAuthCookie, setSchoolCookie, clearSchoolCookie }
+export { setAuthCookie, setSchoolCookie, clearSchoolCookie, clearAuthCookie }

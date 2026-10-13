@@ -143,4 +143,87 @@ describe('createClassSchema', () => {
       expect(issue?.message).toBe('Capacity must be a whole number.');
     }
   });
+
+  describe('department validation per school level', () => {
+    it('accepts Senior Secondary with department Science, Arts, or Commercial', () => {
+      const resultScience = createClassSchema.safeParse({
+        ...VALID,
+        schoolLevel: 'senior_secondary',
+        gradeLevel: 'SSS1',
+        department: 'Science',
+      });
+      expect(resultScience.success).toBe(true);
+
+      const resultArts = createClassSchema.safeParse({
+        ...VALID,
+        schoolLevel: 'senior_secondary',
+        gradeLevel: 'SSS1',
+        department: 'Arts',
+      });
+      expect(resultArts.success).toBe(true);
+
+      const resultCommercial = createClassSchema.safeParse({
+        ...VALID,
+        schoolLevel: 'senior_secondary',
+        gradeLevel: 'SSS1',
+        department: 'Commercial',
+      });
+      expect(resultCommercial.success).toBe(true);
+    });
+
+    it('rejects Senior Secondary when department is missing or empty', () => {
+      const emptyResult = createClassSchema.safeParse({
+        ...VALID,
+        schoolLevel: 'senior_secondary',
+        gradeLevel: 'SSS1',
+        department: '',
+      });
+      expect(emptyResult.success).toBe(false);
+      if (!emptyResult.success) {
+        const issue = emptyResult.error.issues.find((i) => i.path.includes('department'));
+        expect(issue?.message).toBe('Please select a department for Senior Secondary.');
+      }
+
+      const missingResult = createClassSchema.safeParse({
+        ...VALID,
+        schoolLevel: 'senior_secondary',
+        gradeLevel: 'SSS1',
+      });
+      expect(missingResult.success).toBe(false);
+      if (!missingResult.success) {
+        const issue = missingResult.error.issues.find((i) => i.path.includes('department'));
+        expect(issue?.message).toBe('Please select a department for Senior Secondary.');
+      }
+    });
+
+    it('accepts Primary/Nursery/Junior Secondary without department', () => {
+      const resultPrimary = createClassSchema.safeParse({
+        ...VALID,
+        schoolLevel: 'primary',
+        department: '',
+      });
+      expect(resultPrimary.success).toBe(true);
+
+      const resultNursery = createClassSchema.safeParse({
+        ...VALID,
+        schoolLevel: 'nursery',
+        gradeLevel: 'nursery1',
+      });
+      expect(resultNursery.success).toBe(true);
+    });
+
+    it('rejects Primary/Nursery/Junior Secondary when department is provided', () => {
+      const result = createClassSchema.safeParse({
+        ...VALID,
+        schoolLevel: 'primary',
+        department: 'Science',
+      });
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        const issue = result.error.issues.find((i) => i.path.includes('department'));
+        expect(issue?.message).toBe('Department can only be set for senior secondary classes.');
+      }
+    });
+  });
 });
+

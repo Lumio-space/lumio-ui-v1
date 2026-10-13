@@ -30,7 +30,21 @@ export const SCHOOL_LEVEL_TONES: Record<SchoolLevel, 'indigo' | 'purple' | 'gold
 export const GRADE_LEVEL_LABELS: Record<string, string> = {
   nursery1:         'Nursery 1',
   nursery2:         'Nursery 2',
+  nursery3:         'Nursery 3',
   kindergarten:     'Kindergarten',
+  Primary1:         'Primary 1',
+  Primary2:         'Primary 2',
+  Primary3:         'Primary 3',
+  Primary4:         'Primary 4',
+  Primary5:         'Primary 5',
+  Primary6:         'Primary 6',
+  JSS1:             'JSS 1',
+  JSS2:             'JSS 2',
+  JSS3:             'JSS 3',
+  SSS1:             'SSS 1',
+  SSS2:             'SSS 2',
+  SSS3:             'SSS 3',
+  // Backwards compatibility with spaced strings
   'Primary 1':      'Primary 1',
   'Primary 2':      'Primary 2',
   'Primary 3':      'Primary 3',
@@ -47,32 +61,32 @@ export const GRADE_LEVEL_LABELS: Record<string, string> = {
 
 /**
  * Grade levels per school level.
- * Values must match the backend classGradeEnum exactly:
- * "nursery1", "nursery2", "kindergarten", "Primary 1".."Primary 6", "JSS 1".."JSS 3", "SSS 1".."SSS 3".
+ * Values match backend enum exactly:
+ * "nursery1", "nursery2", "nursery3", "Primary1".."Primary6", "JSS1".."JSS3", "SSS1".."SSS3".
  */
 export const GRADE_LEVELS: Record<SchoolLevel, GradeLevelOption[]> = {
   nursery: [
-    { label: 'Nursery 1',    value: 'nursery1' },
-    { label: 'Nursery 2',    value: 'nursery2' },
-    { label: 'Kindergarten', value: 'kindergarten' },
+    { label: 'Nursery 1', value: 'nursery1' },
+    { label: 'Nursery 2', value: 'nursery2' },
+    { label: 'Nursery 3', value: 'nursery3' },
   ],
   primary: [
-    { label: 'Primary 1', value: 'Primary 1' },
-    { label: 'Primary 2', value: 'Primary 2' },
-    { label: 'Primary 3', value: 'Primary 3' },
-    { label: 'Primary 4', value: 'Primary 4' },
-    { label: 'Primary 5', value: 'Primary 5' },
-    { label: 'Primary 6', value: 'Primary 6' },
+    { label: 'Primary 1', value: 'Primary1' },
+    { label: 'Primary 2', value: 'Primary2' },
+    { label: 'Primary 3', value: 'Primary3' },
+    { label: 'Primary 4', value: 'Primary4' },
+    { label: 'Primary 5', value: 'Primary5' },
+    { label: 'Primary 6', value: 'Primary6' },
   ],
   junior_secondary: [
-    { label: 'JSS 1', value: 'JSS 1' },
-    { label: 'JSS 2', value: 'JSS 2' },
-    { label: 'JSS 3', value: 'JSS 3' },
+    { label: 'JSS 1', value: 'JSS1' },
+    { label: 'JSS 2', value: 'JSS2' },
+    { label: 'JSS 3', value: 'JSS3' },
   ],
   senior_secondary: [
-    { label: 'SSS 1', value: 'SSS 1' },
-    { label: 'SSS 2', value: 'SSS 2' },
-    { label: 'SSS 3', value: 'SSS 3' },
+    { label: 'SSS 1', value: 'SSS1' },
+    { label: 'SSS 2', value: 'SSS2' },
+    { label: 'SSS 3', value: 'SSS3' },
   ],
 };
 
@@ -82,8 +96,34 @@ export const GRADE_LEVELS: Record<SchoolLevel, GradeLevelOption[]> = {
  */
 export const CLASS_SECTIONS = ['A', 'B', 'C', 'D', 'E'];
 
+export const DEPARTMENTS = ['Science', 'Arts', 'Commercial'] as const;
+
+export const DEPARTMENT_TONES: Record<'Science' | 'Arts' | 'Commercial', 'green' | 'purple' | 'gold'> = {
+  Science: 'green',
+  Arts: 'purple',
+  Commercial: 'gold',
+};
+
+/** Senior Secondary is the only section that carries a department */
+export function sectionHasDepartment(section?: string | null): boolean {
+  if (!section) return false;
+  return section === 'senior_secondary' || section === 'Senior Secondary';
+}
+
+/** Composes the display name from its parts, e.g. "SS2 Science A" or "Primary 1 A". */
+export function composeClassName(
+  level: string,
+  department?: string | null,
+  letter?: string | null,
+): string {
+  const dept = department && department !== 'Nill' ? department : '';
+  const parts = [level, dept, letter || ''].filter(Boolean);
+  return parts.join(' ');
+}
+
 /** TanStack Query key factory */
 export const classQueryKeys = {
   all:   ['classes'] as const,
   lists: () => [...classQueryKeys.all, 'list'] as const,
 };
+

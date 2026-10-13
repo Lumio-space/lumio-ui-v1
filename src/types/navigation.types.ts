@@ -5,14 +5,13 @@
  */
 
 import type { LucideIcon } from 'lucide-react';
-import type { LegacyRole } from './auth.types';
+import type { UserRole } from './auth.types';
 
 export interface NavItem {
- 
   label: string;
   href: string;
   icon: LucideIcon;
-  roles: LegacyRole[];
+  roles: UserRole[];
   permission?: string;
   badge?: number | string;
 }

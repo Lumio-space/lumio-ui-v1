@@ -36,6 +36,7 @@ import axios, { type InternalAxiosRequestConfig } from 'axios';
 import { apiClient }          from './axios';
 import { useOnboardingStore } from '@/stores/onboarding.store';
 import { useAuthStore }       from '@/stores/auth.store';
+import { getQueryClient }     from './query-client';
 
 /* ── Type augmentation — adds _isRetry to Axios request config ── */
 
@@ -55,11 +56,11 @@ const SCHOOL_INFO_URL = '/registration/drafts/steps/school-info';
 
 /**
  * Helper to get auth token from cookies.
- * Used by both draft-token and Authorization header interceptors.
+ * Checks both 'token' (frontend) and 'access_token' (backend cookie).
  */
 function getAuthToken(): string | null {
   if (typeof document === 'undefined') return null;
-  const match = document.cookie.match(/(?:^|;\s*)token=([^;]*)/);
+  const match = document.cookie.match(/(?:^|;\s*)(?:token|access_token)=([^;]*)/);
   const token = match ? decodeURIComponent(match[1]) : null;
   if (!token || token === 'undefined' || token === 'null') return null;
   return token;
@@ -99,11 +100,13 @@ function getSchoolId(): string | null {
 }
 
 /**
- * Clears the auth cookie when a session expires.
+ * Clears all auth cookies when a session expires or user logs out.
  */
 function clearAuthCookie(): void {
   if (typeof document === 'undefined') return;
   document.cookie = 'token=; path=/; max-age=0; SameSite=Lax';
+  document.cookie = 'access_token=; path=/; max-age=0; SameSite=Lax';
+  document.cookie = 'refresh_token=; path=/; max-age=0; SameSite=Lax';
   document.cookie = 'schoolId=; path=/; max-age=0; SameSite=Lax';
 }
 
@@ -125,8 +128,24 @@ apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   } else {
     // Attach Authorization header for non-registration endpoints
     const authToken = getAuthToken();
-    if (authToken && !config.headers.Authorization) {
-      config.headers.Authorization = `Bearer ${authToken}`;
+    if (authToken) {
+      // Check token expiration before sending request
+      try {
+        const parts = authToken.split('.');
+        if (parts.length === 3) {
+          const payload = JSON.parse(atob(parts[1]));
+          if (payload.exp && Date.now() >= payload.exp * 1000) {
+            invalidateAuthSession();
+            return Promise.reject(new axios.Cancel('Session expired'));
+          }
+        }
+      } catch {
+        // Ignored
+      }
+
+      if (!config.headers.Authorization) {
+        config.headers.Authorization = `Bearer ${authToken}`;
+      }
     }
 
     // Attach school context header for school-scoped endpoints
@@ -138,6 +157,34 @@ apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
 
   return config;
 });
+
+/**
+ * Centralized session invalidation helper.
+ * Immediately clears cookies, auth state, react-query cache, and redirects to login.
+ */
+export function invalidateAuthSession(callbackUrl?: string): void {
+  clearAuthCookie();
+  useAuthStore.getState().setAuthenticated(false);
+  useAuthStore.getState().clearUser();
+
+  if (typeof window !== 'undefined') {
+    try {
+      getQueryClient().clear();
+    } catch {
+      // ignore in environments without query client initialized
+    }
+
+    if (!window.location.pathname.startsWith('/login')) {
+      const currentPath = window.location.pathname;
+      const search      = window.location.search;
+      const target      = callbackUrl ?? `${currentPath}${search}`;
+      const destination = target && target !== '/' && !target.startsWith('/login')
+        ? `/login?callbackUrl=${encodeURIComponent(target)}`
+        : '/login';
+      window.location.href = destination;
+    }
+  }
+}
 
 /* ── Response: error normalisation + draft-error detection ───── */
 
@@ -195,31 +242,36 @@ apiClient.interceptors.response.use(
       );
     }
 
-    /* ── Auth-session expiry detection (401 on app endpoints) ──── */
-    const isAuthEndpoint =
+    /* ── Auth-session expiry/invalidation detection ───────────── */
+    const isLoginEndpoint =
       typeof config?.url === 'string' &&
-      config.url.startsWith('/auth/');
+      (config.url.endsWith('/auth/login') || config.url === '/auth/login');
 
-    if (!isRegistrationEndpoint && !isAuthEndpoint && status === 401) {
-      clearAuthCookie();
-      useAuthStore.getState().setAuthenticated(false);
-      useAuthStore.getState().clearUser();
-
-      if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
-        const currentPath = window.location.pathname;
-        const search      = window.location.search;
-        const callbackUrl = encodeURIComponent(`${currentPath}${search}`);
-        window.location.href = `/login?callbackUrl=${callbackUrl}`;
+    if (!isRegistrationEndpoint && !isLoginEndpoint) {
+      // 1. Token invalid / expired on protected endpoints: 401
+      if (status === 401) {
+        invalidateAuthSession();
+      }
+      // 2. User account/membership revoked or deleted: 403 with membership loss message
+      else if (
+        status === 403 &&
+        (/no membership found/i.test(backendMsg) ||
+         /school context is required/i.test(backendMsg) ||
+         /user.*(not found|inactive|disabled|deleted)/i.test(backendMsg))
+      ) {
+        invalidateAuthSession();
       }
     }
-
-    /* ── Standard error normalisation ────────────────────────── */
 
     const message =
       backendMsg ||
       error.message ||
       'An unexpected error occurred. Please try again.';
 
-    return Promise.reject(new Error(message));
+    const err = new Error(message) as Error & { status?: number; response?: unknown };
+    if (status) err.status = status;
+    if (error.response) err.response = error.response;
+
+    return Promise.reject(err);
   },
 );

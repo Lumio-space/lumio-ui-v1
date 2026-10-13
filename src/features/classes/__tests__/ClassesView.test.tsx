@@ -17,15 +17,15 @@ import { ClassesView }                           from '@/features/classes/compon
 // Hoisted mock handles
 // ---------------------------------------------------------------------------
 
-const { mockRefetch, mockMutate, mockUseClasses } = vi.hoisted(() => ({
-  mockRefetch:   vi.fn(),
-  mockMutate:    vi.fn(),
-  mockUseClasses: vi.fn(),
+const { mockRefetch, mockMutate, mockDeleteMutate, mockUseClasses } = vi.hoisted(() => ({
+  mockRefetch:       vi.fn(),
+  mockMutate:        vi.fn(),
+  mockDeleteMutate:  vi.fn(),
+  mockUseClasses:    vi.fn(),
 }));
 
 // ---------------------------------------------------------------------------
-// Module mock — intercepts both useClasses (ClassesView) and useCreateClass
-// (CreateClassForm child), since both import from the same hooks module.
+// Module mock — intercepts useClasses, useCreateClass, and useDeleteClass
 // ---------------------------------------------------------------------------
 
 vi.mock('@/features/classes/hooks', () => ({
@@ -35,6 +35,20 @@ vi.mock('@/features/classes/hooks', () => ({
     isPending: false,
     error:     null,
     reset:     vi.fn(),
+  }),
+  useDeleteClass: () => ({
+    mutate:    mockDeleteMutate,
+    isPending: false,
+    error:     null,
+    reset:     vi.fn(),
+  }),
+}));
+
+vi.mock('@/features/subjects/hooks', () => ({
+  useSubjects: () => ({
+    data: [],
+    isLoading: false,
+    isError: false,
   }),
 }));
 
@@ -90,6 +104,7 @@ describe('ClassesView', () => {
   beforeEach(() => {
     mockRefetch.mockReset();
     mockMutate.mockReset();
+    mockDeleteMutate.mockReset();
     mockUseClasses.mockReset();
   });
 
@@ -369,9 +384,9 @@ describe('ClassesView', () => {
         expect(within(dialog).getByLabelText(/class level/i)).not.toBeDisabled();
       });
 
-      fireEvent.change(within(dialog).getByLabelText(/class level/i), { target: { value: 'Primary 1' } });
-      fireEvent.change(classSectionSelect, { target: { value: 'A' } });
-      fireEvent.change(within(dialog).getByLabelText(/room/i), { target: { value: '101' } });
+      fireEvent.change(within(dialog).getByLabelText(/class level/i), { target: { value: 'Primary2' } });
+      fireEvent.change(classSectionSelect, { target: { value: 'B' } });
+      fireEvent.change(within(dialog).getByLabelText(/room/i), { target: { value: '301' } });
       fireEvent.change(within(dialog).getByLabelText(/capacity/i), { target: { value: '35' } });
 
       // Submit
@@ -423,6 +438,49 @@ describe('ClassesView', () => {
       await waitFor(() => {
         expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
       });
+    });
+  });
+
+  // ── Class deletion flow ─────────────────────────────────────────────────────
+
+  describe('class deletion modal', () => {
+    it('opens delete confirmation modal when Delete is selected from card menu', async () => {
+      stubClasses();
+      renderWithProviders(<ClassesView />);
+
+      const actionButtons = screen.getAllByRole('button', { name: /class actions/i });
+      fireEvent.click(actionButtons[0]);
+
+      const deleteOption = await screen.findByRole('menuitem', { name: /delete/i });
+      fireEvent.click(deleteOption);
+
+      await waitFor(() => {
+        expect(screen.getByRole('dialog')).toBeInTheDocument();
+        expect(screen.getByRole('heading', { name: /delete class/i })).toBeInTheDocument();
+        expect(screen.getByText(/Are you sure you want to delete/i)).toBeInTheDocument();
+      });
+    });
+
+    it('triggers delete mutation when confirmed in delete modal', async () => {
+      stubClasses();
+      renderWithProviders(<ClassesView />);
+
+      const actionButtons = screen.getAllByRole('button', { name: /class actions/i });
+      fireEvent.click(actionButtons[0]);
+
+      const deleteOption = await screen.findByRole('menuitem', { name: /delete/i });
+      fireEvent.click(deleteOption);
+
+      const confirmButton = await screen.findByRole('button', { name: /delete class/i });
+      fireEvent.click(confirmButton);
+
+      expect(mockDeleteMutate).toHaveBeenCalledWith(
+        'cls-1',
+        expect.objectContaining({
+          onSuccess: expect.any(Function),
+          onError: expect.any(Function),
+        })
+      );
     });
   });
 });

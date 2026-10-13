@@ -1,24 +1,8 @@
-/**
- * Dashboard Page — /dashboard
- *
- * Phase 1: Stub. Full implementation in Phase 3.
- */
-
 import type { Metadata } from 'next';
-import { PageHeader } from '@/components/shared/PageHeader';
+import { DashboardView } from '@/features/dashboard';
 
 export const metadata: Metadata = { title: 'Dashboard' };
 
 export default function DashboardPage() {
-  return (
-    <div className="space-y-6">
-      <PageHeader
-        title="Dashboard"
-        description="Overview of school operations"
-      />
-      <div className="rounded-2xl border border-dashed border-indigo-200 bg-indigo-50 p-12 text-center">
-        <p className="font-semibold text-indigo-700">Full page coming in Phase 3</p>
-      </div>
-    </div>
-  );
+  return <DashboardView />;
 }

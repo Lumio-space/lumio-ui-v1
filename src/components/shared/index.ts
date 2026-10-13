@@ -8,3 +8,8 @@ export type { ImageUploadProps } from './ImageUpload';
 export { Progress, ProgressRing } from './Progress';
 export { NativeSelect }  from './NativeSelect';
 export { Dropdown, DropdownItem, DropdownDivider, DropdownLabel } from './Dropdown';
+export { Modal }         from './Modal';
+export type { ModalProps } from './Modal';
+export { Tabs }          from './Tabs';
+export type { TabItem, TabsProps } from './Tabs';
+export { Table, THead, TH, TR, TD } from './Table';

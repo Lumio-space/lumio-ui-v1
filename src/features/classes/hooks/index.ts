@@ -3,7 +3,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { classQueryKeys }            from '../constants';
-import { fetchClasses, createClass } from '../api/classes.api';
+import { subjectQueryKeys }          from '@/features/subjects/constants';
+import { fetchClasses, createClass, deleteClass } from '../api/classes.api';
 import type { CreateClassPayload }   from '../types';
 
 /**
@@ -14,6 +15,7 @@ export function useClasses() {
   return useQuery({
     queryKey: classQueryKeys.lists(),
     queryFn:  fetchClasses,
+    staleTime: 0,
   });
 }
 
@@ -23,8 +25,8 @@ export function useClasses() {
  * No onError handler here: the calling component owns the error display
  * (following the LoginForm / ForgotPasswordForm inline-error pattern).
  *
- * onSuccess invalidates the classes list so the new class appears without
- * a manual reload.
+ * onSuccess invalidates classes and subjects queries so the new class
+ * is immediately available across the application.
  */
 export function useCreateClass() {
   const queryClient = useQueryClient();
@@ -32,7 +34,24 @@ export function useCreateClass() {
   return useMutation({
     mutationFn: (payload: CreateClassPayload) => createClass(payload),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: classQueryKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: classQueryKeys.all });
+      queryClient.invalidateQueries({ queryKey: subjectQueryKeys.all });
     },
   });
 }
+
+/**
+ * Mutation hook — deletes a class by ID.
+ */
+export function useDeleteClass() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (id: string) => deleteClass(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: classQueryKeys.all });
+      queryClient.invalidateQueries({ queryKey: subjectQueryKeys.all });
+    },
+  });
+}
+

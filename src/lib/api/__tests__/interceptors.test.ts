@@ -230,5 +230,39 @@ describe('apiClient Interceptors', () => {
       // Should not redirect
       expect(window.location.href).toBe('http://localhost/login');
     });
+
+    it('invalidates session and clears cookies when protected endpoint returns 403 No membership found', async () => {
+      document.cookie = 'token=active-token; path=/';
+      document.cookie = 'schoolId=school-123; path=/';
+
+      apiClient.defaults.adapter = async (config) => {
+        const error = new Error('Forbidden: No membership found for this school') as unknown as {
+          response: AxiosResponse;
+          config: InternalAxiosRequestConfig;
+          isAxiosError: boolean;
+        };
+        error.isAxiosError = true;
+        error.config = config;
+        error.response = {
+          data: { message: 'Forbidden: No membership found for this school', statusCode: 403 },
+          status: 403,
+          statusText: 'Forbidden',
+          headers: {},
+          config,
+        };
+        throw error;
+      };
+
+      await expect(apiClient.get('/classes/')).rejects.toThrow('Forbidden: No membership found for this school');
+
+      // Both token and schoolId cookies should be cleared
+      expect(document.cookie).not.toContain('active-token');
+      expect(document.cookie).not.toContain('school-123');
+      // Auth store should be cleared
+      expect(useAuthStore.getState().isAuthenticated).toBe(false);
+      expect(useAuthStore.getState().user).toBeNull();
+      // Redirect to login
+      expect(window.location.href).toBe('/login?callbackUrl=%2Fclasses');
+    });
   });
 });

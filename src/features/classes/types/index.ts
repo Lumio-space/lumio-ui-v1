@@ -15,8 +15,10 @@ export type SchoolLevel =
   | 'junior_secondary'
   | 'senior_secondary';
 
+export type Department = 'Science' | 'Arts' | 'Commercial' | 'Nill';
+
 /** Shape returned by GET /classes/ — Drizzle column names */
-export interface ClassRecord {
+export type ClassRecord = {
   id:           string;
   schoolId:     string;
   grade:        string;   // e.g. "Primary 1"
@@ -24,21 +26,36 @@ export interface ClassRecord {
   level:        string;   // e.g. "primary"
   capacity:     number;
   room:         number;
-  formTeacher?: string | null;
-  teacher?:     string;
-  students?:    number;
+  department?:      Department | null;
+  formTeacher?:     string | null;
+  formTeacherName?: string | null;
+  teacher?:         string;
+  students?:        number;
   subjects?:    string[];
   createdAt:    string;
   updatedAt?:   string;
-}
+};
 
 export type GradeLevel =
   | 'nursery1'
   | 'nursery2'
+  | 'nursery3'
+  | 'Primary1'
+  | 'Primary2'
+  | 'Primary3'
+  | 'Primary4'
+  | 'Primary5'
+  | 'Primary6'
+  | 'JSS1'
+  | 'JSS2'
+  | 'JSS3'
+  | 'SSS1'
+  | 'SSS2'
+  | 'SSS3'
   | 'kindergarten'
   | 'Primary 1'
   | 'Primary 2'
-  | 'Primary 3'
+  | 'Primary 3' 
   | 'Primary 4'
   | 'Primary 5'
   | 'Primary 6'
@@ -53,10 +70,11 @@ export type GradeLevel =
  * Create class payload — matches CreateClassDto field names exactly.
  * These are the DTO field names, not the DB column names.
  */
-export interface CreateClassPayload {
+export type CreateClassPayload = {
   gradeLevel:   GradeLevel | string;
   gradeSection: string;
   schoolLevel:  SchoolLevel;
   capacity:     number;
   room:         number;
-}
+  department?:  Department;
+};

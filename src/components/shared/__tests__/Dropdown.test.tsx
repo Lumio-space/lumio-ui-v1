@@ -100,4 +100,27 @@ describe('Dropdown', () => {
     expect(screen.getByRole('separator')).toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: /delete/i })).toHaveClass('text-red-600');
   });
+
+  it('renders button trigger directly without nesting it inside another button (prevents hydration error)', () => {
+    const { container } = renderWithProviders(
+      <Dropdown
+        trigger={
+          <button type="button" aria-label="Action Menu">
+            <span>Click</span>
+          </button>
+        }
+      >
+        <DropdownItem>Option</DropdownItem>
+      </Dropdown>
+    );
+
+    const buttons = container.querySelectorAll('button');
+    // Only the trigger button should be rendered (when closed)
+    expect(buttons).toHaveLength(1);
+    expect(buttons[0]).toHaveAttribute('aria-label', 'Action Menu');
+    expect(buttons[0]).toHaveAttribute('aria-haspopup', 'menu');
+    // Crucial check: button must not contain a nested button
+    expect(buttons[0].querySelector('button')).toBeNull();
+  });
 });
+

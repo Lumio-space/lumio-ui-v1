@@ -7,11 +7,16 @@
 
 import type { Metadata } from 'next';
 import { ClassesView }   from '@/features/classes';
+import { RoleGuard }     from '@/components/auth/RoleGuard';
 
 export const metadata: Metadata = {
   title: 'Classes',
 };
 
 export default function ClassesPage() {
-  return <ClassesView />;
+  return (
+    <RoleGuard allowedRoles={['admin']}>
+      <ClassesView />
+    </RoleGuard>
+  );
 }
