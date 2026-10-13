@@ -1,14 +1,25 @@
 'use client';
 
-import type { ReactNode } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import { AnimatePresence } from 'framer-motion';
 import { Sidebar } from './Sidebar';
 import { Topbar } from './Topbar';
 import { BottomNav } from './BottomNav';
 import { useUIStore } from '@/stores/ui.store';
+import { invalidateAuthSession } from '@/lib/api/interceptors';
 
 export function DashboardShell({ children }: { children: ReactNode }) {
   const { sidebarOpen, setSidebarOpen } = useUIStore();
+
+  useEffect(() => {
+    if (typeof document !== 'undefined') {
+      const match = document.cookie.match(/(?:^|;\s*)(?:token|access_token)=([^;]*)/);
+      const token = match ? decodeURIComponent(match[1]) : null;
+      if (!token || token === 'undefined' || token === 'null') {
+        invalidateAuthSession();
+      }
+    }
+  }, []);
 
   return (
     <div className="min-h-screen bg-canvas">

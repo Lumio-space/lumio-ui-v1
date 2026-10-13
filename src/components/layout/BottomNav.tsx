@@ -8,7 +8,7 @@ import { cn } from '@/lib/utils';
 
 export function BottomNav() {
   const pathname = usePathname();
-  const role     = useAuthStore((s: { role: string }) => s.role as import("@/types/auth.types").LegacyRole);
+  const role     = useAuthStore((s) => s.role);
   const items    = BOTTOM_NAV_ITEMS.filter((i) => i.roles.includes(role));
 
   const isActive = (href: string) =>

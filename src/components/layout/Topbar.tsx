@@ -5,12 +5,12 @@ import { useState, useRef, useEffect } from 'react'
 import { useRouter }      from 'next/navigation'
 import {
   MenuIcon, SearchIcon, BellIcon, LogOutIcon,
-  UserIcon, SettingsIcon, ChevronDownIcon, CheckIcon,
+  UserIcon, SettingsIcon,
 } from 'lucide-react'
 import { Avatar }       from '@/components/shared/Avatar'
 import { useAuthStore } from '@/stores/auth.store'
 import { useLogout }    from '@/features/auth/hooks/useAuth'
-import { LEGACY_ROLE_LABELS, type LegacyRole } from '@/types/auth.types'
+import { CANONICAL_ROLE_LABELS } from '@/types/auth.types'
 import { cn } from '@/lib/utils'
 
 /* ── Inline Dropdown ──────────────────────────────────────── */
@@ -92,7 +92,6 @@ const NOTIFICATIONS = [
 export function Topbar({ onMenuClickAction }: { onMenuClickAction: () => void }) {
   const router     = useRouter()
   const role       = useAuthStore((s) => s.role)
-  const setRole    = useAuthStore((s) => s.setRole)
   const storeUser  = useAuthStore((s) => s.user)
   const { mutate: logout, isPending: isLoggingOut } = useLogout()
   const [query, setQuery] = useState('')
@@ -118,24 +117,11 @@ export function Topbar({ onMenuClickAction }: { onMenuClickAction: () => void })
           <SearchIcon className="h-5 w-5" />
         </button>
 
-        {/* Role switcher */}
-        <Dropdown
-          trigger={
-            <span className="hidden items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 md:inline-flex">
-              <span className="h-2 w-2 rounded-full bg-purple-500" />
-              {LEGACY_ROLE_LABELS[role]}
-              <ChevronDownIcon className="h-4 w-4 text-slate-400" />
-            </span>
-          }
-        >
-          <DropdownLabel>View as role</DropdownLabel>
-          {(Object.keys(LEGACY_ROLE_LABELS) as LegacyRole[]).map((r) => (
-            <DropdownItem key={r} onClick={() => setRole(r)} danger={false}
-              icon={role === r ? <CheckIcon className="h-4 w-4 text-purple-500" /> : <span className="h-4 w-4" />}>
-              {LEGACY_ROLE_LABELS[r]}
-            </DropdownItem>
-          ))}
-        </Dropdown>
+        {/* Authenticated Role Identity Badge */}
+        <span className="hidden items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 md:inline-flex">
+          <span className="h-2 w-2 rounded-full bg-purple-500" />
+          {CANONICAL_ROLE_LABELS[role] ?? 'Workspace'}
+        </span>
 
         {/* Notifications */}
         <Dropdown
@@ -177,7 +163,7 @@ export function Topbar({ onMenuClickAction }: { onMenuClickAction: () => void })
               <Avatar name={displayName} size="sm" />
               <span className="hidden text-left lg:block">
                 <span className="block text-sm font-semibold leading-tight text-slate-800">{displayName}</span>
-                <span className="block text-xs leading-tight text-slate-400">{LEGACY_ROLE_LABELS[role]}</span>
+                <span className="block text-xs leading-tight text-slate-400">{CANONICAL_ROLE_LABELS[role]}</span>
               </span>
             </span>
           }

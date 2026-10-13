@@ -69,7 +69,7 @@ export const brandingSchema = z.object({
 
 export const academicsSchema = z.object({
   academicYear:   z.string().min(1, 'Academic year is required'),
-  gradingSystem:  z.enum(['letter', 'gpa', 'percent']),
+  gradingSystem:  z.enum(['letter', 'gpa', 'percentage']),
   termStructure:  z.enum(['two_semester', 'three_trimester', 'four_quarter']),
   weekStart:      z.enum(['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'], {
     error: 'Please select a week start day',

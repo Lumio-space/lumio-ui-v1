@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
-import type { LegacyRole } from '@/types/auth.types'
+import { normalizeRole, type UserRole } from '@/types/auth.types'
 
 const safeStorage = {
   getItem: () => null,
@@ -8,15 +8,17 @@ const safeStorage = {
   removeItem: () => undefined,
 }
 
-interface AuthUser {
-  name:  string
-  email: string
-  role?: string
+export interface AuthUser {
+  id?:       string
+  name:      string
+  email:     string
+  role?:     string
+  schoolId?: string
+  classId?:  string
 }
 
 interface AuthState {
-  role:             LegacyRole
-  setRole:          (role: LegacyRole) => void
+  role:             UserRole
   isAuthenticated:  boolean
   setAuthenticated: (value: boolean) => void
   /** Populated by useLogin / OnboardingWizard on completion; read by Topbar. */
@@ -29,12 +31,31 @@ export const useAuthStore = create<AuthState>()(
   persist(
     (set) => ({
       role:             'admin',
-      setRole:          (role) => set({ role }),
       isAuthenticated:  false,
       setAuthenticated: (value) => set({ isAuthenticated: value }),
       user:             null,
-      setUser:          (user) => set({ user }),
-      clearUser:        () => set({ user: null }),
+      setUser:          (user) => {
+        const canonicalRole = normalizeRole(user?.role) ?? 'admin';
+        set({
+          user,
+          role: canonicalRole,
+          isAuthenticated: !!user,
+        });
+      },
+      clearUser: () => {
+        set({
+          user: null,
+          role: 'admin',
+          isAuthenticated: false,
+        });
+        if (typeof window !== 'undefined' && window.localStorage) {
+          try {
+            window.localStorage.removeItem('lumio-auth');
+          } catch {
+            // ignore
+          }
+        }
+      },
     }),
     {
       name: 'lumio-auth',
@@ -46,6 +67,12 @@ export const useAuthStore = create<AuthState>()(
 
         return window.localStorage
       }),
+      onRehydrateStorage: () => (state) => {
+        if (state?.user) {
+          state.role = normalizeRole(state.user.role) ?? 'admin';
+          state.isAuthenticated = true;
+        }
+      },
     }
   )
 )

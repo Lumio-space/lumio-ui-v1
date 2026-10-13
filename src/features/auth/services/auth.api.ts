@@ -1,6 +1,7 @@
 import { apiClient }          from '@/lib/api/axios';
 import type { LoginFormValues }  from '@/features/auth/schemas/login.schema';
 import type { ForgotPasswordFormValues } from '@/features/auth/schemas/forgot-password.schema';
+import type { ResetPasswordFormValues } from '@/features/auth/schemas/reset-password.schema';
 import type { LoginResponse }    from '../types';
 
 export async function loginUser(credentials: LoginFormValues): Promise<LoginResponse> {
@@ -20,6 +21,20 @@ export async function forgotPassword(
 ) {
   const response = await apiClient.post('/auth/forgot-password', {
     email: credentials.email,
+  });
+
+  return response.data;
+}
+
+type ResetPasswordCredentials = Pick<ResetPasswordFormValues, 'newPassword'>
+
+export async function resetPassword(
+    token: string,
+    credentials: ResetPasswordCredentials
+) {
+  const response = await apiClient.post('/auth/reset-password', {
+    token,
+    newPassword: credentials.newPassword
   });
 
   return response.data;

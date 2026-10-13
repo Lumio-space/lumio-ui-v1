@@ -28,7 +28,7 @@ export interface InstitutionInfoPayload {
 
 export interface AcademicSettingsPayload {
   academicYear:  string;
-  gradingSystem: 'letter' | 'gpa' | 'percent';
+  gradingSystem: 'letter' | 'gpa' | 'percentage';
   termStructure: 'two_semester' | 'three_trimester' | 'four_quarter';
   weekStartsOn: 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday';
   schoolDays: Array<'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday'>;

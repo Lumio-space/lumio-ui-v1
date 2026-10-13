@@ -6,12 +6,13 @@
  * ┌─────────────────────────────────────────────────────────────────┐
  * │ REQUEST interceptor                                             │
  * │                                                                 │
- * │ Reads the draft token from the onboarding store and attaches   │
- * │ x-draft-token to every outgoing request — EXCEPT the school-   │
- * │ info endpoint, which creates the draft and must not carry a     │
- * │ token (none exists at that point, and the backend would reject  │
- * │ a token on that route even if one were sent).                   │
+ * │ Reads the draft token from the onboarding store and attaches    │
+ * │ x-draft-token only to registration draft requests — EXCEPT the │
+ * │ school-info endpoint, which creates the draft and must not carry│
+ * │ a token. For normal app endpoints, attaches the auth token as   │
+ * │ the Authorization Bearer header.                               │
  * └─────────────────────────────────────────────────────────────────┘
+ *
  *
  * ┌─────────────────────────────────────────────────────────────────┐
  * │ RESPONSE interceptor — error normalisation + draft detection    │
@@ -34,6 +35,8 @@
 import axios, { type InternalAxiosRequestConfig } from 'axios';
 import { apiClient }          from './axios';
 import { useOnboardingStore } from '@/stores/onboarding.store';
+import { useAuthStore }       from '@/stores/auth.store';
+import { getQueryClient }     from './query-client';
 
 /* ── Type augmentation — adds _isRetry to Axios request config ── */
 
@@ -51,21 +54,137 @@ declare module 'axios' {
  */
 const SCHOOL_INFO_URL = '/registration/drafts/steps/school-info';
 
-/* ── Request: attach x-draft-token, skip school-info ─────────── */
+/**
+ * Helper to get auth token from cookies.
+ * Checks both 'token' (frontend) and 'access_token' (backend cookie).
+ */
+function getAuthToken(): string | null {
+  if (typeof document === 'undefined') return null;
+  const match = document.cookie.match(/(?:^|;\s*)(?:token|access_token)=([^;]*)/);
+  const token = match ? decodeURIComponent(match[1]) : null;
+  if (!token || token === 'undefined' || token === 'null') return null;
+  return token;
+}
+
+/**
+ * Helper to get active school context ID from cookies, auth store, or JWT payload.
+ */
+function getSchoolId(): string | null {
+  if (typeof document !== 'undefined') {
+    const match = document.cookie.match(/(?:^|;\s*)schoolId=([^;]*)/);
+    const sid = match ? decodeURIComponent(match[1]) : null;
+    if (sid && sid !== 'undefined' && sid !== 'null') return sid;
+  }
+
+  const storeSchoolId = useAuthStore.getState().user?.schoolId;
+  if (storeSchoolId && storeSchoolId !== 'undefined' && storeSchoolId !== 'null') {
+    return storeSchoolId;
+  }
+
+  // Fallback: check if the JWT token payload itself contains school context
+  const token = getAuthToken();
+  if (token) {
+    try {
+      const parts = token.split('.');
+      if (parts.length === 3) {
+        const payload = JSON.parse(atob(parts[1]));
+        const sid = payload.schoolId || payload.currentSchoolId || payload.school_id || payload.membership?.schoolId;
+        if (sid) return String(sid);
+      }
+    } catch {
+      // Ignored
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Clears all auth cookies when a session expires or user logs out.
+ */
+function clearAuthCookie(): void {
+  if (typeof document === 'undefined') return;
+  document.cookie = 'token=; path=/; max-age=0; SameSite=Lax';
+  document.cookie = 'access_token=; path=/; max-age=0; SameSite=Lax';
+  document.cookie = 'refresh_token=; path=/; max-age=0; SameSite=Lax';
+  document.cookie = 'schoolId=; path=/; max-age=0; SameSite=Lax';
+}
+
+/* ── Request: attach x-draft-token or Authorization header ─────── */
 
 apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
+  const isRegistrationEndpoint = typeof config.url === 'string' && config.url.startsWith('/registration/');
+
   if (config.url === SCHOOL_INFO_URL) {
     // Draft does not exist yet — never attach a token for this route.
     return config;
   }
 
-  const draftToken = useOnboardingStore.getState().draftToken;
-  if (draftToken) {
-    config.headers['x-draft-token'] = draftToken;
+  if (isRegistrationEndpoint) {
+    const draftToken = useOnboardingStore.getState().draftToken;
+    if (draftToken) {
+      config.headers['x-draft-token'] = draftToken;
+    }
+  } else {
+    // Attach Authorization header for non-registration endpoints
+    const authToken = getAuthToken();
+    if (authToken) {
+      // Check token expiration before sending request
+      try {
+        const parts = authToken.split('.');
+        if (parts.length === 3) {
+          const payload = JSON.parse(atob(parts[1]));
+          if (payload.exp && Date.now() >= payload.exp * 1000) {
+            invalidateAuthSession();
+            return Promise.reject(new axios.Cancel('Session expired'));
+          }
+        }
+      } catch {
+        // Ignored
+      }
+
+      if (!config.headers.Authorization) {
+        config.headers.Authorization = `Bearer ${authToken}`;
+      }
+    }
+
+    // Attach school context header for school-scoped endpoints
+    const schoolId = getSchoolId();
+    if (schoolId && !config.headers['x-school-id']) {
+      config.headers['x-school-id'] = schoolId;
+    }
   }
 
   return config;
 });
+
+/**
+ * Centralized session invalidation helper.
+ * Immediately clears cookies, auth state, react-query cache, and redirects to login.
+ */
+export function invalidateAuthSession(callbackUrl?: string): void {
+  clearAuthCookie();
+  useAuthStore.getState().setAuthenticated(false);
+  useAuthStore.getState().clearUser();
+
+  if (typeof window !== 'undefined') {
+    try {
+      getQueryClient().clear();
+    } catch {
+      // ignore in environments without query client initialized
+    }
+
+    if (!window.location.pathname.startsWith('/login')) {
+      const currentPath = window.location.pathname;
+      const search      = window.location.search;
+      const target      = callbackUrl ?? `${currentPath}${search}`;
+      const destination = target && target !== '/' && !target.startsWith('/login')
+        ? `/login?callbackUrl=${encodeURIComponent(target)}`
+        : '/login';
+      window.location.href = destination;
+    }
+  }
+}
 
 /* ── Response: error normalisation + draft-error detection ───── */
 
@@ -123,13 +242,36 @@ apiClient.interceptors.response.use(
       );
     }
 
-    /* ── Standard error normalisation ────────────────────────── */
+    /* ── Auth-session expiry/invalidation detection ───────────── */
+    const isLoginEndpoint =
+      typeof config?.url === 'string' &&
+      (config.url.endsWith('/auth/login') || config.url === '/auth/login');
+
+    if (!isRegistrationEndpoint && !isLoginEndpoint) {
+      // 1. Token invalid / expired on protected endpoints: 401
+      if (status === 401) {
+        invalidateAuthSession();
+      }
+      // 2. User account/membership revoked or deleted: 403 with membership loss message
+      else if (
+        status === 403 &&
+        (/no membership found/i.test(backendMsg) ||
+         /school context is required/i.test(backendMsg) ||
+         /user.*(not found|inactive|disabled|deleted)/i.test(backendMsg))
+      ) {
+        invalidateAuthSession();
+      }
+    }
 
     const message =
       backendMsg ||
       error.message ||
       'An unexpected error occurred. Please try again.';
 
-    return Promise.reject(new Error(message));
+    const err = new Error(message) as Error & { status?: number; response?: unknown };
+    if (status) err.status = status;
+    if (error.response) err.response = error.response;
+
+    return Promise.reject(err);
   },
 );

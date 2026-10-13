@@ -21,11 +21,10 @@ export function NativeSelect({ className, children, ...props }: NativeSelectProp
     <select
       data-slot="native-select"
       className={cn(
-        // Match the shadcn Input sizing / border / ring exactly
-        'h-9 w-full appearance-none rounded-xl border border-input bg-background px-3 py-1.5 text-sm text-foreground',
-        'focus-visible:border-ring focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
+        'h-11 w-full appearance-none rounded-xl border border-slate-200 bg-white px-3.5 pr-10 text-sm text-slate-900',
+        'transition-colors focus:outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-100',
         'disabled:cursor-not-allowed disabled:opacity-50',
-        'bg-[url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 16 16\'%3E%3Cpath fill=\'none\' stroke=\'%2394a3b8\' stroke-width=\'1.5\' d=\'M4 6l4 4 4-4\'/%3E%3C/svg%3E")] bg-position-[right_0.5rem_center] bg-size-[1rem] bg-no-repeat pr-8',
+        'bg-[url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 16 16\'%3E%3Cpath fill=\'none\' stroke=\'%2394a3b8\' stroke-width=\'1.5\' d=\'M4 6l4 4 4-4\'/%3E%3C/svg%3E")] bg-position-[right_0.85rem_center] bg-size-[1rem] bg-no-repeat',
         className
       )}
       {...props}

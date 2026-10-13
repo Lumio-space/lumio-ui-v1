@@ -1,24 +1,17 @@
 /**
  * Parents Page — /parents
- *
- * Phase 1: Stub. Full implementation in Phase 4.
  */
 
 import type { Metadata } from 'next';
-import { PageHeader } from '@/components/shared/PageHeader';
+import { RoleGuard } from '@/components/auth/RoleGuard';
+import { ParentsView } from '@/features/invitations/components/ParentsView';
 
 export const metadata: Metadata = { title: 'Parents' };
 
 export default function ParentsPage() {
   return (
-    <div className="space-y-6">
-      <PageHeader
-        title="Parents"
-        description="Parent contacts and communications"
-      />
-      <div className="rounded-2xl border border-dashed border-indigo-200 bg-indigo-50 p-12 text-center">
-        <p className="font-semibold text-indigo-700">Full page coming in Phase 4</p>
-      </div>
-    </div>
+    <RoleGuard allowedRoles={['admin', 'teacher']}>
+      <ParentsView />
+    </RoleGuard>
   );
 }
