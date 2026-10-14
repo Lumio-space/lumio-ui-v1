@@ -1,6 +1,11 @@
 import axios from 'axios';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? '';
+const DEFAULT_API_URL =
+  process.env.NODE_ENV === 'production'
+    ? 'https://lumio-api-v1.onrender.com/api'
+    : '';
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || DEFAULT_API_URL;
 
 // Create the shared Axios instance used across the app.
 export const apiClient = axios.create({
