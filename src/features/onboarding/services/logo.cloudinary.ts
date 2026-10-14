@@ -5,10 +5,12 @@ export async function uploadToCloudinary(
   file:   File,
   params: BrandingSignatureResponse,
 ): Promise<LogoMetadata> {
-  const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
+  const cloudName =
+    process.env.CLOUDINARY_CLOUD_NAME ??
+    process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
   if (!cloudName) {
     throw new Error(
-      'Cloudinary is not configured. Missing NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME environment variable.',
+      'Cloudinary is not configured. Missing CLOUDINARY_CLOUD_NAME environment variable.',
     );
   }
 

@@ -5,6 +5,10 @@ const enableReactCompiler = process.env.NEXT_PUBLIC_ENABLE_REACT_COMPILER === ''
 const nextConfig: NextConfig = {
   reactCompiler: enableReactCompiler,
 
+  env: {
+    CLOUDINARY_CLOUD_NAME: process.env.CLOUDINARY_CLOUD_NAME,
+  },
+
   /**
    * Remote image domains.
    *   - pravatar.cc: mock avatars used by lib/data.ts (remove in Phase 7).

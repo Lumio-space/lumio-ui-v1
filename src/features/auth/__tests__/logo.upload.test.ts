@@ -14,7 +14,7 @@
  *     no real HTTP calls are made and the interceptor side-effects are skipped.
  *   - global fetch is stubbed for the direct Cloudinary upload which uses
  *     browser fetch (not Axios) as required by the architecture.
- *   - NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME is stubbed via vi.stubEnv so
+ *   - CLOUDINARY_CLOUD_NAME is stubbed via vi.stubEnv so
  *     uploadToCloudinary reads a predictable test value.
  */
 
@@ -230,7 +230,7 @@ describe('uploadToCloudinary', () => {
 
   beforeEach(() => {
     vi.stubGlobal('fetch', fetchSpy);
-    vi.stubEnv('NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME', TEST_CLOUD_NAME);
+    vi.stubEnv('CLOUDINARY_CLOUD_NAME', TEST_CLOUD_NAME);
   });
   afterEach(() => {
     vi.unstubAllGlobals();
@@ -247,7 +247,7 @@ describe('uploadToCloudinary', () => {
     expect(url).toBe(EXPECTED_CLOUDINARY_URL);
   });
 
-  it('builds the URL from NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME, not from signed params', async () => {
+  it('builds the URL from CLOUDINARY_CLOUD_NAME, not from signed params', async () => {
     fetchSpy.mockResolvedValueOnce(
       new Response(JSON.stringify(CLOUDINARY_RESPONSE), { status: 200 }),
     );
@@ -257,12 +257,13 @@ describe('uploadToCloudinary', () => {
     expect(url).toContain('/image/upload');
   });
 
-  it('throws when NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME is not set', async () => {
+  it('throws when CLOUDINARY_CLOUD_NAME is not set', async () => {
     vi.unstubAllEnvs();
+    delete process.env.CLOUDINARY_CLOUD_NAME;
     delete process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
     await expect(
       uploadToCloudinary(makeFile('logo.png', 'image/png'), SIGNED_PARAMS),
-    ).rejects.toThrow(/NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME/);
+    ).rejects.toThrow(/CLOUDINARY_CLOUD_NAME/);
   });
 
   it('includes all signed params in the FormData body', async () => {
@@ -328,7 +329,7 @@ describe('uploadSchoolLogo', () => {
   beforeEach(() => {
     mockPost.mockReset();
     vi.stubGlobal('fetch', fetchSpy);
-    vi.stubEnv('NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME', TEST_CLOUD_NAME);
+    vi.stubEnv('CLOUDINARY_CLOUD_NAME', TEST_CLOUD_NAME);
   });
   afterEach(() => {
     vi.unstubAllGlobals();
@@ -382,7 +383,7 @@ describe('uploadSchoolLogo', () => {
     });
   });
 
-  it('uploads to the cloud name from NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME', async () => {
+  it('uploads to the cloud name from CLOUDINARY_CLOUD_NAME', async () => {
     setupHappyPath();
     await uploadSchoolLogo(makeFile('logo.png', 'image/png'));
     const [cloudinaryUrl] = fetchSpy.mock.calls[0] as [string];
