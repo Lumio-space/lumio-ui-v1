@@ -17,12 +17,34 @@ import { ClassesView }                           from '@/features/classes/compon
 // Hoisted mock handles
 // ---------------------------------------------------------------------------
 
-const { mockRefetch, mockMutate, mockDeleteMutate, mockUseClasses } = vi.hoisted(() => ({
+const { mockRefetch, mockMutate, mockUpdateMutate, mockDeleteMutate, mockUseClasses } = vi.hoisted(() => ({
   mockRefetch:       vi.fn(),
   mockMutate:        vi.fn(),
+  mockUpdateMutate:  vi.fn(),
   mockDeleteMutate:  vi.fn(),
   mockUseClasses:    vi.fn(),
 }));
+
+const mockCreateHook = {
+  mutate:    mockMutate,
+  isPending: false,
+  error:     null,
+  reset:     vi.fn(),
+};
+
+const mockUpdateHook = {
+  mutate:    mockUpdateMutate,
+  isPending: false,
+  error:     null,
+  reset:     vi.fn(),
+};
+
+const mockDeleteHook = {
+  mutate:    mockDeleteMutate,
+  isPending: false,
+  error:     null,
+  reset:     vi.fn(),
+};
 
 // ---------------------------------------------------------------------------
 // Module mock — intercepts useClasses, useCreateClass, and useDeleteClass
@@ -30,47 +52,12 @@ const { mockRefetch, mockMutate, mockDeleteMutate, mockUseClasses } = vi.hoisted
 
 vi.mock('@/features/classes/hooks', () => ({
   useClasses: () => mockUseClasses(),
-  useCreateClass: () => ({
-    mutate:    mockMutate,
-    isPending: false,
-    error:     null,
-    reset:     vi.fn(),
-  }),
-  useUpdateClass: () => ({
-    mutate:    vi.fn(),
-    isPending: false,
-    error:     null,
-    reset:     vi.fn(),
-  }),
-  useDeleteClass: () => ({
-    mutate:    mockDeleteMutate,
-    isPending: false,
-    error:     null,
-    reset:     vi.fn(),
-  }),
+  useCreateClass: () => mockCreateHook,
+  useUpdateClass: () => mockUpdateHook,
+  useDeleteClass: () => mockDeleteHook,
 }));
 
-vi.mock('../hooks', () => ({
-  useClasses: () => mockUseClasses(),
-  useCreateClass: () => ({
-    mutate:    mockMutate,
-    isPending: false,
-    error:     null,
-    reset:     vi.fn(),
-  }),
-  useUpdateClass: () => ({
-    mutate:    vi.fn(),
-    isPending: false,
-    error:     null,
-    reset:     vi.fn(),
-  }),
-  useDeleteClass: () => ({
-    mutate:    mockDeleteMutate,
-    isPending: false,
-    error:     null,
-    reset:     vi.fn(),
-  }),
-}));
+
 
 
 

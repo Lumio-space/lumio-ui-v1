@@ -80,7 +80,8 @@ export function EditSubjectModal({
       });
       resetMutation?.();
     }
-  }, [subject, open, form, resetMutation]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [subject?.id, open]);
 
   const watchedSection = useWatch({
     control: form.control,

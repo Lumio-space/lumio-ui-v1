@@ -37,7 +37,7 @@ import {
   sectionHasDepartment,
   composeClassName,
 } from '../constants';
-import { useUpdateClass, useClasses } from '../hooks';
+import { useUpdateClass, useClasses } from '@/features/classes/hooks';
 import { createClassSchema, type CreateClassFormValues, type CreateClassFormInput } from '../schemas';
 import type { ClassRecord, SchoolLevel, Department } from '../types';
 
@@ -88,7 +88,8 @@ export function EditClassModal({
       setDuplicateWarning(null);
       resetMutation?.();
     }
-  }, [classRecord, open, form, resetMutation]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [classRecord?.id, open]);
 
   const watchedSchoolLevel = useWatch({
     control: form.control,
@@ -123,7 +124,8 @@ export function EditClassModal({
     if (!sectionHasDepartment(watchedSchoolLevel)) {
       form.setValue('department', '', { shouldValidate: false });
     }
-  }, [watchedSchoolLevel, form]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [watchedSchoolLevel]);
 
   useEffect(() => {
     if (!classRecord) return;

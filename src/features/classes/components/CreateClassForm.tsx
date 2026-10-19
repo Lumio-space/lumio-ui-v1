@@ -29,7 +29,7 @@ import {
   sectionHasDepartment,
   composeClassName,
 } from '../constants';
-import { useCreateClass, useClasses } from '../hooks';
+import { useCreateClass, useClasses } from '@/features/classes/hooks';
 import { normalizeGradeLevelForBackend } from '../api/classes.api';
 import { createClassSchema, type CreateClassFormValues, type CreateClassFormInput } from '../schemas';
 import type { SchoolLevel, Department, CreateClassPayload } from '../types';

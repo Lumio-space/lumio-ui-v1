@@ -10,6 +10,13 @@ global.ResizeObserver = class ResizeObserver {
   disconnect() {}
 };
 
+// Polyfill scrollTo and scrollIntoView for jsdom (used by framer-motion and radix dialogs)
+window.scrollTo = vi.fn();
+if (typeof Element !== 'undefined') {
+  Element.prototype.scrollTo = vi.fn();
+  Element.prototype.scrollIntoView = vi.fn();
+}
+
 // Radix Checkbox also touches window.matchMedia in some paths
 Object.defineProperty(window, 'matchMedia', {
   writable: true,

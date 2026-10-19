@@ -8,7 +8,7 @@ import { PageHeader }  from '@/components/shared/PageHeader';
 import { EmptyState }  from '@/components/shared/EmptyState';
 import { Button }      from '@/components/ui/button';
 
-import { useClasses, useDeleteClass } from '../hooks';
+import { useClasses, useDeleteClass } from '@/features/classes/hooks';
 import { useSubjects } from '@/features/subjects/hooks';
 import { useTeachers } from '@/features/teachers/hooks';
 import { GRADE_LEVEL_LABELS, composeClassName } from '../constants';
