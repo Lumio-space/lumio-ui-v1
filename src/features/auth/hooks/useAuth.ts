@@ -37,11 +37,12 @@ function setSchoolCookie(schoolId: string | null | undefined, remember: boolean 
 }
 
 function clearSchoolCookie() {
-  document.cookie = 'schoolId=; path=/; max-age=0; SameSite=Lax'
+  document.cookie = 'schoolId=; path=/; max-age=0; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax'
 }
 
 function clearAuthCookie() {
-  document.cookie = 'token=; path=/; max-age=0; SameSite=Lax'
+  document.cookie = 'token=; path=/; max-age=0; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax'
+  document.cookie = 'access_token=; path=/; max-age=0; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax'
   clearSchoolCookie()
 }
 
@@ -91,7 +92,11 @@ export function useLogin() {
         callbackUrl && callbackUrl.startsWith('/') && !callbackUrl.startsWith('//')
           ? callbackUrl
           : '/dashboard'
-      router.push(destination)
+      if (typeof window !== 'undefined') {
+        window.location.href = destination
+      } else {
+        router.push(destination)
+      }
     },
   })
 }
@@ -105,12 +110,20 @@ export function useLogout() {
     onSuccess: () => {
       clearAuthCookie()
       clearUser()
-      router.push('/login')
+      if (typeof window !== 'undefined') {
+        window.location.href = '/login'
+      } else {
+        router.push('/login')
+      }
     },
     onError: () => {
       clearAuthCookie()
       clearUser()
-      router.push('/login')
+      if (typeof window !== 'undefined') {
+        window.location.href = '/login'
+      } else {
+        router.push('/login')
+      }
     },
   })
 }

@@ -59,6 +59,8 @@ import { TeacherCard } from './TeacherCard';
 import { TeacherRow } from './TeacherRow';
 import { TeacherDetailModal } from './TeacherDetailModal';
 import { InviteTeacherModal } from './InviteTeacherModal';
+import { AssignFormTeacherModal } from './AssignFormTeacherModal';
+import { AssignTeacherSubjectModal } from './AssignTeacherSubjectModal';
 import type {
   TeacherRecord,
   TeacherInvitation,
@@ -120,6 +122,8 @@ export function TeachersView() {
   const [dept, setDept] = useState('all');
   const [view, setView] = useState<'grid' | 'list'>('grid');
   const [detailTeacher, setDetailTeacher] = useState<TeacherRecord | null>(null);
+  const [assignFormTeacherTarget, setAssignFormTeacherTarget] = useState<TeacherRecord | null>(null);
+  const [assignSubjectTarget, setAssignSubjectTarget] = useState<TeacherRecord | null>(null);
 
   // Invitation state
   const [inviteQuery, setInviteQuery] = useState('');
@@ -167,7 +171,7 @@ export function TeachersView() {
         !q ||
         (i.name ? i.name.toLowerCase().includes(q) : false) ||
         i.email.toLowerCase().includes(q) ||
-        i.className.toLowerCase().includes(q);
+        (i.className ? i.className.toLowerCase().includes(q) : false);
       const matchesF = inviteFilter === 'All' || i.status === inviteFilter;
       return matchesQ && matchesF;
     });
@@ -181,14 +185,7 @@ export function TeachersView() {
     return composeClassName(gradeLabel, c.department, c.section);
   };
 
-  function openWizard(preselectedClass?: string) {
-    if (preselectedClass) {
-      setWizardClassId(preselectedClass);
-      setWizardStep(2);
-    } else {
-      setWizardClassId(undefined);
-      setWizardStep(1);
-    }
+  function openWizard() {
     setWizardOpen(true);
   }
 
@@ -379,6 +376,8 @@ export function TeachersView() {
                       onView={() => setDetailTeacher(t)}
                       onRemove={() => handleRemoveTeacher(t)}
                       onToggleStatus={() => handleToggleStatus(t)}
+                      onAssignFormTeacher={() => setAssignFormTeacherTarget(t)}
+                      onAssignSubject={() => setAssignSubjectTarget(t)}
                     />
                   ))}
                 </div>
@@ -676,7 +675,7 @@ export function TeachersView() {
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => openWizard(c.id)}
+                          onClick={() => openWizard()}
                         >
                           Invite
                         </Button>
@@ -696,14 +695,34 @@ export function TeachersView() {
         invitations={invitations}
         onClose={() => setDetailTeacher(null)}
         onToggleStatus={handleToggleStatus}
+        onAssignFormTeacher={(t) => {
+          setDetailTeacher(null);
+          setAssignFormTeacherTarget(t);
+        }}
+        onAssignSubject={(t) => {
+          setDetailTeacher(null);
+          setAssignSubjectTarget(t);
+        }}
       />
 
-      {/* 3-Step Invite Teacher Wizard Modal */}
+      {/* Assign Form Teacher Modal */}
+      <AssignFormTeacherModal
+        open={!!assignFormTeacherTarget}
+        onClose={() => setAssignFormTeacherTarget(null)}
+        teacher={assignFormTeacherTarget}
+      />
+
+      {/* Assign Subject Modal */}
+      <AssignTeacherSubjectModal
+        open={!!assignSubjectTarget}
+        onClose={() => setAssignSubjectTarget(null)}
+        teacher={assignSubjectTarget}
+      />
+
+      {/* Invite Teacher Modal */}
       <InviteTeacherModal
         open={wizardOpen}
         onClose={() => setWizardOpen(false)}
-        preselectedClassId={wizardClassId}
-        initialStep={wizardStep}
         invitations={invitations}
         onInvitationCreated={(newInvite) => {
           addInvitation(newInvite);

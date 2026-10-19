@@ -13,6 +13,8 @@ import { teacherQueryKeys } from '../constants';
 import {
   fetchTeachers,
   inviteTeacher,
+  setFormTeacher,
+  assignSubjectToTeacher,
   removeTeacher,
   updateTeacherStatus,
 } from '../api/teachers.api';
@@ -40,6 +42,45 @@ export function useInviteTeacher() {
 
   return useMutation({
     mutationFn: (payload: InviteTeacherPayload) => inviteTeacher(payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: teacherQueryKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: classQueryKeys.lists() });
+    },
+  });
+}
+
+/**
+ * Mutation hook to assign a teacher as Form Teacher for a class.
+ */
+export function useAssignFormTeacher() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ classId, teacherId }: { classId: string; teacherId: string }) =>
+      setFormTeacher(classId, teacherId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: teacherQueryKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: classQueryKeys.lists() });
+    },
+  });
+}
+
+/**
+ * Mutation hook to assign a subject to a teacher in a class.
+ */
+export function useAssignTeacherSubject() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      teacherId,
+      classId,
+      subjectId,
+    }: {
+      teacherId: string;
+      classId: string;
+      subjectId: string;
+    }) => assignSubjectToTeacher(teacherId, classId, subjectId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: teacherQueryKeys.lists() });
       queryClient.invalidateQueries({ queryKey: classQueryKeys.lists() });

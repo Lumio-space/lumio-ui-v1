@@ -25,6 +25,8 @@ interface TeacherRowProps {
   onView: () => void;
   onRemove?: () => void;
   onToggleStatus?: () => void;
+  onAssignFormTeacher?: () => void;
+  onAssignSubject?: () => void;
 }
 
 export function TeacherRow({
@@ -33,6 +35,8 @@ export function TeacherRow({
   onView,
   onRemove,
   onToggleStatus,
+  onAssignFormTeacher,
+  onAssignSubject,
 }: TeacherRowProps) {
   const teacherName = teacher.fullName || teacher.name || 'Teacher';
   const assignment = assignmentForTeacher(invitations, teacher);
@@ -76,6 +80,16 @@ export function TeacherRow({
         <DropdownItem icon={<EyeIcon className="h-4 w-4" />} onClick={onView}>
           View profile
         </DropdownItem>
+        {onAssignFormTeacher && (
+          <DropdownItem onClick={onAssignFormTeacher}>
+            Assign Form Teacher
+          </DropdownItem>
+        )}
+        {onAssignSubject && (
+          <DropdownItem onClick={onAssignSubject}>
+            Assign Subject
+          </DropdownItem>
+        )}
         {onToggleStatus && (
           <DropdownItem
             icon={<PowerIcon className="h-4 w-4" />}

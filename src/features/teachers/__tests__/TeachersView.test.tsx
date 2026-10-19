@@ -35,6 +35,14 @@ vi.mock('../hooks', () => ({
     mutate: mockUpdateStatusMutate,
     isPending: false,
   }),
+  useAssignFormTeacher: () => ({
+    mutateAsync: vi.fn(),
+    isPending: false,
+  }),
+  useAssignTeacherSubject: () => ({
+    mutateAsync: vi.fn(),
+    isPending: false,
+  }),
 }));
 
 vi.mock('@/features/classes/hooks', () => ({
@@ -182,10 +190,10 @@ describe('TeachersView', () => {
     const inviteBtn = screen.getByRole('button', { name: /^invite$/i });
     await user.click(inviteBtn);
 
-    // Should open the wizard modal
+    // Should open the invite modal
     await waitFor(() => {
       expect(screen.getByRole('dialog')).toBeInTheDocument();
-      expect(screen.getByText(/inviting a form teacher for/i)).toBeInTheDocument();
+      expect(screen.getByText('Invite a teacher')).toBeInTheDocument();
     });
   });
 

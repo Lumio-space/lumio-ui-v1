@@ -170,22 +170,13 @@ describe('AcceptInviteView (lumio-react flow)', () => {
       token: 'valid-token-123',
       expiresAt: '2099-10-01T00:00:00.000Z',
       classId: 'cls-sss2',
-    });
-
-    const classesApi = await import('@/features/classes/api/classes.api');
-    vi.spyOn(classesApi, 'fetchClasses').mockResolvedValue([
-      {
+      class: {
         id: 'cls-sss2',
-        schoolId: 'school-1',
         grade: 'SSS 2',
         section: 'B',
-        level: 'senior_secondary',
         department: 'Arts',
-        capacity: 30,
-        room: 202,
-        createdAt: '2026-01-01T00:00:00.000Z',
       },
-    ]);
+    });
 
     renderWithProviders(<AcceptInviteView />);
 

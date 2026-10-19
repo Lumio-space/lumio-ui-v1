@@ -32,13 +32,11 @@ import { Badge } from '@/components/shared/Badge';
 import { Avatar } from '@/components/shared/Avatar';
 import { Modal } from '@/components/shared/Modal';
 import { ROLE_META, type InvitePayload, type InviteState, type InviteRole } from '@/components/invite/inviteTypes';
-import { useClasses } from '@/features/classes/hooks';
 import {
   GRADE_LEVEL_LABELS,
   composeClassName,
   DEPARTMENT_TONES,
 } from '@/features/classes/constants';
-import type { ClassRecord } from '@/features/classes/types';
 import { useValidateInvitation, useDeclineInvitation } from '../hooks/useAcceptInvitation';
 import { AcceptInviteSkeleton } from './AcceptInviteSkeleton';
 import { cn } from '@/lib/utils';
@@ -200,22 +198,7 @@ export function InviteDetailsView({
     }
   }
 
-  const { data: rawClasses } = useClasses();
-  const classes: ClassRecord[] = useMemo(() => {
-    if (Array.isArray(rawClasses)) return rawClasses;
-    if (rawClasses && typeof rawClasses === 'object') {
-      const anyData = rawClasses as { data?: unknown; classes?: unknown; items?: unknown };
-      if (Array.isArray(anyData.data)) return anyData.data as ClassRecord[];
-      if (Array.isArray(anyData.classes)) return anyData.classes as ClassRecord[];
-      if (Array.isArray(anyData.items)) return anyData.items as ClassRecord[];
-    }
-    return [];
-  }, [rawClasses]);
-
-  const targetClassId = inviteData?.classId;
-  const targetClass =
-    (targetClassId ? classes.find((c) => c.id === targetClassId) : undefined) ||
-    inviteData?.class;
+  const targetClass = inviteData?.class;
   const classDepartment =
     targetClass?.department && targetClass.department !== 'Nill'
       ? targetClass.department

@@ -49,10 +49,15 @@ export function proxy(req: NextRequest) {
     return response;
   }
 
-  // Authenticated user trying to access login/onboarding → dashboard
+  // Authenticated user trying to access login/onboarding → destination or dashboard
   if (isAuthOnly && validToken) {
     const callbackUrl = req.nextUrl.searchParams.get('callbackUrl');
-    if (callbackUrl && (callbackUrl.startsWith('/accept-invite') || callbackUrl.startsWith('/invite'))) {
+    if (
+      callbackUrl &&
+      callbackUrl.startsWith('/') &&
+      !callbackUrl.startsWith('//') &&
+      !AUTH_ONLY_PREFIXES.some((p) => callbackUrl.startsWith(p))
+    ) {
       return NextResponse.redirect(new URL(callbackUrl, req.url));
     }
     return NextResponse.redirect(new URL('/dashboard', req.url));

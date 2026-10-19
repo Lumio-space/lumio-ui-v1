@@ -104,19 +104,43 @@ function getSchoolId(): string | null {
  */
 function clearAuthCookie(): void {
   if (typeof document === 'undefined') return;
-  document.cookie = 'token=; path=/; max-age=0; SameSite=Lax';
-  document.cookie = 'access_token=; path=/; max-age=0; SameSite=Lax';
-  document.cookie = 'refresh_token=; path=/; max-age=0; SameSite=Lax';
-  document.cookie = 'schoolId=; path=/; max-age=0; SameSite=Lax';
+  document.cookie = 'token=; path=/; max-age=0; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax';
+  document.cookie = 'access_token=; path=/; max-age=0; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax';
+  document.cookie = 'refresh_token=; path=/; max-age=0; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax';
+  document.cookie = 'schoolId=; path=/; max-age=0; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax';
 }
 
 /* ── Request: attach x-draft-token or Authorization header ─────── */
+
+/**
+ * Public authentication and invitation endpoints.
+ * These endpoints never require, send, or validate existing session tokens,
+ * and should never trigger session invalidation or login redirects.
+ */
+function isPublicAuthEndpoint(url?: string): boolean {
+  if (!url || typeof url !== 'string') return false;
+  return (
+    url === '/auth/login' ||
+    url.startsWith('/auth/login') ||
+    url.startsWith('/auth/forgot-password') ||
+    url.startsWith('/auth/reset-password') ||
+    url.startsWith('/invites/accept') ||
+    url.startsWith('/invites/register') ||
+    url.startsWith('/invites/decline') ||
+    url.startsWith('/invites/validate')
+  );
+}
 
 apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   const isRegistrationEndpoint = typeof config.url === 'string' && config.url.startsWith('/registration/');
 
   if (config.url === SCHOOL_INFO_URL) {
     // Draft does not exist yet — never attach a token for this route.
+    return config;
+  }
+
+  // Public authentication and invitation endpoints: never require or validate an existing auth token
+  if (isPublicAuthEndpoint(config.url)) {
     return config;
   }
 
@@ -174,7 +198,11 @@ export function invalidateAuthSession(callbackUrl?: string): void {
       // ignore in environments without query client initialized
     }
 
-    if (!window.location.pathname.startsWith('/login')) {
+    const isInvitePath =
+      window.location.pathname.startsWith('/accept-invite') ||
+      window.location.pathname.startsWith('/invite');
+
+    if (!window.location.pathname.startsWith('/login') && !isInvitePath) {
       const currentPath = window.location.pathname;
       const search      = window.location.search;
       const target      = callbackUrl ?? `${currentPath}${search}`;
@@ -209,6 +237,7 @@ apiClient.interceptors.response.use(
      *   • The error indicates the draft is gone or invalid:
      *       - HTTP 401 / 410
      *       - Backend message mentioning draft + expired/invalid/not found
+     *       - (expired|invalid).*(draft|token)
      */
     const isRegistrationEndpoint =
       typeof config?.url === 'string' &&
@@ -243,11 +272,7 @@ apiClient.interceptors.response.use(
     }
 
     /* ── Auth-session expiry/invalidation detection ───────────── */
-    const isLoginEndpoint =
-      typeof config?.url === 'string' &&
-      (config.url.endsWith('/auth/login') || config.url === '/auth/login');
-
-    if (!isRegistrationEndpoint && !isLoginEndpoint) {
+    if (!isRegistrationEndpoint && !isPublicAuthEndpoint(config?.url)) {
       // 1. Token invalid / expired on protected endpoints: 401
       if (status === 401) {
         invalidateAuthSession();

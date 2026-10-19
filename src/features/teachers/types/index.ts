@@ -14,7 +14,21 @@ export type InvitationAssignmentType = 'none' | 'form_teacher' | 'subject_teache
 /** Backend DTO for POST /invites/teachers */
 export interface InviteTeacherPayload {
   email: string;
+  classId?: string;
+  assignmentType?: 'none' | 'form_teacher' | 'subject_teacher';
+}
+
+/** Payload for POST /teachers/form-teacher */
+export interface AssignFormTeacherPayload {
   classId: string;
+  teacherId: string;
+}
+
+/** Payload for POST /teachers/assign-subjects */
+export interface AssignTeacherSubjectPayload {
+  teacherId: string;
+  classId: string;
+  subjectId: string;
 }
 
 /** Response from POST /invites/teachers */
@@ -22,7 +36,7 @@ export interface InviteTeacherResponse {
   id: string;
   email: string;
   role: string;
-  classId: string;
+  classId?: string;
   status: string;
   token?: string;
 }
@@ -76,8 +90,8 @@ export interface TeacherInvitation {
   name?: string;
   email: string;
   role?: string;
-  classId: string;
-  className: string;
+  classId?: string;
+  className?: string;
   subjects?: string[];
   status: InviteStatus;
   sent: string;
@@ -87,10 +101,10 @@ export interface TeacherInvitation {
   teacherId?: string;
 }
 
-/** Form values for the teacher invite wizard */
+/** Form values for the teacher invite modal */
 export interface InviteTeacherFormValues {
-  classId: string;
   email: string;
+  classId?: string;
   name?: string;
 }
 

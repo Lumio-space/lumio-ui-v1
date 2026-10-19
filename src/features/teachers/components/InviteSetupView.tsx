@@ -34,13 +34,11 @@ import {
   passwordRules,
 } from '../schemas/accept-invitation.schema';
 import { useValidateInvitation, useAcceptNewTeacher } from '../hooks/useAcceptInvitation';
-import { useClasses } from '@/features/classes/hooks';
 import {
   GRADE_LEVEL_LABELS,
   composeClassName,
   DEPARTMENT_TONES,
 } from '@/features/classes/constants';
-import type { ClassRecord } from '@/features/classes/types';
 import { AcceptInviteSkeleton } from './AcceptInviteSkeleton';
 import { cn } from '@/lib/utils';
 
@@ -118,22 +116,7 @@ export function InviteSetupView({ token: propToken, onBack }: InviteSetupViewPro
     reset: resetMutation,
   } = useAcceptNewTeacher();
 
-  const { data: rawClasses } = useClasses();
-  const classes: ClassRecord[] = useMemo(() => {
-    if (Array.isArray(rawClasses)) return rawClasses;
-    if (rawClasses && typeof rawClasses === 'object') {
-      const anyData = rawClasses as { data?: unknown; classes?: unknown; items?: unknown };
-      if (Array.isArray(anyData.data)) return anyData.data as ClassRecord[];
-      if (Array.isArray(anyData.classes)) return anyData.classes as ClassRecord[];
-      if (Array.isArray(anyData.items)) return anyData.items as ClassRecord[];
-    }
-    return [];
-  }, [rawClasses]);
-
-  const targetClassId = inviteData?.classId;
-  const targetClass =
-    (targetClassId ? classes.find((c) => c.id === targetClassId) : undefined) ||
-    inviteData?.class;
+  const targetClass = inviteData?.class;
   const classDepartment =
     targetClass?.department && targetClass.department !== 'Nill'
       ? targetClass.department

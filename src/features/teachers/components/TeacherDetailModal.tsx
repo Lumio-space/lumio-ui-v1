@@ -33,6 +33,8 @@ interface TeacherDetailModalProps {
   invitations: TeacherInvitation[];
   onClose: () => void;
   onToggleStatus?: (teacher: TeacherRecord) => void;
+  onAssignFormTeacher?: (teacher: TeacherRecord) => void;
+  onAssignSubject?: (teacher: TeacherRecord) => void;
 }
 
 export function TeacherDetailModal({
@@ -40,6 +42,8 @@ export function TeacherDetailModal({
   invitations,
   onClose,
   onToggleStatus,
+  onAssignFormTeacher,
+  onAssignSubject,
 }: TeacherDetailModalProps) {
   if (!teacher) return null;
 
@@ -203,18 +207,36 @@ export function TeacherDetailModal({
         )}
 
         {/* Modal actions footer */}
-        <div className="mt-6 flex items-center justify-between border-t border-slate-100 pt-4">
-          {onToggleStatus ? (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onToggleStatus(teacher)}
-            >
-              {teacher.status === 'active' ? 'Mark inactive' : 'Mark active'}
-            </Button>
-          ) : (
-            <div />
-          )}
+        <div className="mt-6 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-4">
+          <div className="flex items-center gap-2">
+            {onAssignFormTeacher && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => onAssignFormTeacher(teacher)}
+              >
+                Assign Form Teacher
+              </Button>
+            )}
+            {onAssignSubject && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => onAssignSubject(teacher)}
+              >
+                Assign Subject
+              </Button>
+            )}
+            {onToggleStatus && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => onToggleStatus(teacher)}
+              >
+                {teacher.status === 'active' ? 'Mark inactive' : 'Mark active'}
+              </Button>
+            )}
+          </div>
           <Button variant="outline" size="sm" onClick={onClose}>
             Close
           </Button>

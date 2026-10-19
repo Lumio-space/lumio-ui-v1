@@ -167,6 +167,55 @@ describe('apiClient Interceptors', () => {
       expect(capturedConfig!.headers['x-draft-token']).toBeUndefined();
       expect(capturedConfig!.headers.Authorization).toBeUndefined();
     });
+
+    it('does NOT reject or attach Authorization header to /auth/login even when an expired token cookie is present', async () => {
+      // Create an expired JWT token (exp in the past)
+      const expiredPayload = btoa(JSON.stringify({ exp: Math.floor(Date.now() / 1000) - 3600 }));
+      const expiredToken = `eyJhbGciOiJIUzI1NiJ9.${expiredPayload}.dummy-signature`;
+      document.cookie = `token=${expiredToken}; path=/`;
+
+      let capturedConfig: InternalAxiosRequestConfig | null = null;
+      apiClient.defaults.adapter = async (config) => {
+        capturedConfig = config;
+        return {
+          data: { token: 'fresh-token-xyz', user: { id: 'u1' } },
+          status: 200,
+          statusText: 'OK',
+          headers: {},
+          config,
+        } as AxiosResponse;
+      };
+
+      const res = await apiClient.post('/auth/login', { email: 'teacher@school.ng', password: 'password123' });
+
+      expect(res.status).toBe(200);
+      expect(capturedConfig).not.toBeNull();
+      expect(capturedConfig!.headers.Authorization).toBeUndefined();
+    });
+
+    it('does NOT reject or attach Authorization header to /invites/accept even when an expired token cookie is present', async () => {
+      const expiredPayload = btoa(JSON.stringify({ exp: Math.floor(Date.now() / 1000) - 3600 }));
+      const expiredToken = `eyJhbGciOiJIUzI1NiJ9.${expiredPayload}.dummy-signature`;
+      document.cookie = `token=${expiredToken}; path=/`;
+
+      let capturedConfig: InternalAxiosRequestConfig | null = null;
+      apiClient.defaults.adapter = async (config) => {
+        capturedConfig = config;
+        return {
+          data: { email: 'teacher@school.ng', schoolName: 'Greenfield', role: 'teacher' },
+          status: 200,
+          statusText: 'OK',
+          headers: {},
+          config,
+        } as AxiosResponse;
+      };
+
+      const res = await apiClient.get('/invites/accept?token=invite-token-123');
+
+      expect(res.status).toBe(200);
+      expect(capturedConfig).not.toBeNull();
+      expect(capturedConfig!.headers.Authorization).toBeUndefined();
+    });
   });
 
   describe('Response Interceptor — 401 Session Expiry', () => {
@@ -229,6 +278,35 @@ describe('apiClient Interceptors', () => {
 
       // Should not redirect
       expect(window.location.href).toBe('http://localhost/login');
+    });
+
+    it('does not redirect if 401 comes from /invites/accept', async () => {
+      window.location.pathname = '/accept-invite';
+      window.location.href = 'http://localhost/accept-invite?token=invalid-tok';
+
+      apiClient.defaults.adapter = async (config) => {
+        const error = new Error('Invalid or expired invitation token') as unknown as {
+          response: AxiosResponse;
+          config: InternalAxiosRequestConfig;
+          isAxiosError: boolean;
+        };
+        error.isAxiosError = true;
+        error.config = config;
+        error.response = {
+          data: { message: 'Invalid or expired invitation token', statusCode: 401 },
+          status: 401,
+          statusText: 'Unauthorized',
+          headers: {},
+          config,
+        };
+        throw error;
+      };
+
+      await expect(apiClient.get('/invites/accept?token=invalid-tok'))
+        .rejects.toThrow('Invalid or expired invitation token');
+
+      // Should not redirect to /login
+      expect(window.location.href).toBe('http://localhost/accept-invite?token=invalid-tok');
     });
 
     it('invalidates session and clears cookies when protected endpoint returns 403 No membership found', async () => {

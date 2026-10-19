@@ -24,7 +24,7 @@ import { Avatar } from '@/components/shared/Avatar';
 import { InviteInput } from '@/components/invite/InviteInput';
 import { ROLE_META, type InvitePayload, type InviteRole } from '@/components/invite/inviteTypes';
 import { useAuthStore } from '@/stores/auth.store';
-import { clearAuthCookie } from '@/features/auth/hooks/useAuth';
+import { setAuthCookie, setSchoolCookie, clearAuthCookie } from '@/features/auth/hooks/useAuth';
 import { loginUser, logoutUser } from '@/features/auth/services/auth.api';
 import {
   useValidateInvitation,
@@ -151,6 +151,14 @@ export function InviteLoginView({ token: propToken, onBack }: InviteLoginViewPro
         password,
         rememberMe: true,
       });
+
+      const authToken = loginRes?.token || loginRes?.accessToken;
+      if (authToken) {
+        setAuthCookie(authToken, true);
+      }
+      if (loginRes?.user?.schoolId) {
+        setSchoolCookie(loginRes.user.schoolId, true);
+      }
 
       if (loginRes?.user) {
         setUser({

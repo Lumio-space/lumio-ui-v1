@@ -84,7 +84,31 @@ export async function inviteTeacher(
     {
       email: payload.email,
       classId: payload.classId,
+      assignmentType: payload.assignmentType ?? 'none',
     }
+  );
+  return response.data;
+}
+
+export async function setFormTeacher(
+  classId: string,
+  teacherId: string
+): Promise<{ message: string; classId: string; teacherId: string }> {
+  const response = await apiClient.post<{ message: string; classId: string; teacherId: string }>(
+    '/teachers/form-teacher',
+    { classId, teacherId }
+  );
+  return response.data;
+}
+
+export async function assignSubjectToTeacher(
+  teacherId: string,
+  classId: string,
+  subjectId: string
+): Promise<{ message: string; teacherId: string; classId: string; subjectId: string }> {
+  const response = await apiClient.post<{ message: string; teacherId: string; classId: string; subjectId: string }>(
+    '/teachers/assign-subjects',
+    { teacherId, classId, subjectId }
   );
   return response.data;
 }

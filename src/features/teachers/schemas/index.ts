@@ -5,11 +5,6 @@
 import { z } from 'zod';
 
 export const inviteTeacherSchema = z.object({
-  classId: z
-    .string({
-      error: 'Please select a class',
-    })
-    .min(1, 'Please select a class'),
   email: z
     .string({
       error: 'Email address is required',
@@ -17,7 +12,11 @@ export const inviteTeacherSchema = z.object({
     .trim()
     .min(1, 'Email address is required')
     .email('Please enter a valid email address'),
-  name: z.string().optional(),
+  name: z.string().trim().optional(),
+  classId: z
+    .string()
+    .min(1, 'Please select a class')
+    .optional(),
 });
 
 export type InviteTeacherFormSchema = z.infer<typeof inviteTeacherSchema>;
