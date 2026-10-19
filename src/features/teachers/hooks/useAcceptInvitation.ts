@@ -21,7 +21,14 @@ import { useInvitationsStore } from '@/stores/invitations.store';
 export function useValidateInvitation(token: string | null) {
   return useQuery({
     queryKey: ['invitation', 'validate', token],
-    queryFn: () => teachersApi.validateInvitationToken(token!),
+    queryFn: async () => {
+      if (token && useInvitationsStore.getState().isInvitationCancelled(token)) {
+        throw new Error(
+          'This invitation is no longer valid. The link may have been revoked or cancelled by an administrator.'
+        );
+      }
+      return teachersApi.validateInvitationToken(token!);
+    },
     enabled: Boolean(token && token.trim().length > 0),
     retry: false,
     staleTime: 5 * 60 * 1000,
@@ -38,8 +45,15 @@ export function useAcceptNewTeacher() {
   const setUser = useAuthStore((s) => s.setUser);
 
   return useMutation({
-    mutationFn: (payload: AcceptInvitationPayload) =>
-      teachersApi.acceptNewUserInvitation(payload),
+    mutationFn: (payload: AcceptInvitationPayload) => {
+      if (useInvitationsStore.getState().isInvitationCancelled(payload.token)) {
+        throw new Error(
+          'This invitation is no longer valid. The link may have been revoked or cancelled by an administrator.'
+        );
+      }
+      return teachersApi.acceptNewUserInvitation(payload);
+    },
+
     onSuccess: (data, variables) => {
       const token = data.accessToken || (data as unknown as { token?: string }).token;
       if (token) {
@@ -92,8 +106,14 @@ export function useAcceptExistingTeacher() {
   const setUser = useAuthStore((s) => s.setUser);
 
   return useMutation({
-    mutationFn: (payload: AcceptExistingPayload) =>
-      teachersApi.acceptExistingUserInvitation(payload),
+    mutationFn: (payload: AcceptExistingPayload) => {
+      if (useInvitationsStore.getState().isInvitationCancelled(payload.token)) {
+        throw new Error(
+          'This invitation is no longer valid. The link may have been revoked or cancelled by an administrator.'
+        );
+      }
+      return teachersApi.acceptExistingUserInvitation(payload);
+    },
     onSuccess: (data) => {
       const currentUser = useAuthStore.getState().user;
       if (data.schoolId) {

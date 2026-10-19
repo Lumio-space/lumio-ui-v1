@@ -16,6 +16,7 @@ import { ClassCard }        from './ClassCard';
 import { Modal }            from '@/components/shared/Modal';
 import { ClassDetailModal } from './ClassDetailModal';
 import { CreateClassForm }  from './CreateClassForm';
+import { EditClassModal }   from './EditClassModal';
 import type { ClassRecord } from '../types';
 
 const SECTION_GROUPS = [
@@ -40,6 +41,7 @@ function isUuid(str: string | null | undefined): boolean {
 export function ClassesView() {
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [detailClass, setDetailClass]         = useState<ClassRecord | null>(null);
+  const [classToEdit, setClassToEdit]         = useState<ClassRecord | null>(null);
   const [classToDelete, setClassToDelete]     = useState<ClassRecord | null>(null);
   const [deleteError, setDeleteError]         = useState<string | null>(null);
   const [deleteSuccess, setDeleteSuccess]     = useState<string | null>(null);
@@ -241,6 +243,7 @@ export function ClassesView() {
                         <ClassCard
                           classRecord={resolvedClass}
                           onViewDetails={(c) => setDetailClass(c)}
+                          onEdit={(c) => setClassToEdit(c)}
                           onDelete={(c) => {
                             setDeleteError(null);
                             setClassToDelete(c);
@@ -266,6 +269,17 @@ export function ClassesView() {
       >
         <CreateClassForm onSuccess={() => setCreateModalOpen(false)} onCancel={() => setCreateModalOpen(false)} />
       </Modal>
+
+      {/* Edit class modal */}
+      <EditClassModal
+        open={!!classToEdit}
+        classRecord={classToEdit}
+        onClose={() => setClassToEdit(null)}
+        onSuccess={() => {
+          setClassToEdit(null);
+          setDeleteSuccess('Class updated successfully.');
+        }}
+      />
 
       {/* Class details modal */}
       <ClassDetailModal

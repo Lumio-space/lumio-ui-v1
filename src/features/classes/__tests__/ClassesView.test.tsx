@@ -36,6 +36,12 @@ vi.mock('@/features/classes/hooks', () => ({
     error:     null,
     reset:     vi.fn(),
   }),
+  useUpdateClass: () => ({
+    mutate:    vi.fn(),
+    isPending: false,
+    error:     null,
+    reset:     vi.fn(),
+  }),
   useDeleteClass: () => ({
     mutate:    mockDeleteMutate,
     isPending: false,
@@ -44,6 +50,30 @@ vi.mock('@/features/classes/hooks', () => ({
   }),
 }));
 
+vi.mock('../hooks', () => ({
+  useClasses: () => mockUseClasses(),
+  useCreateClass: () => ({
+    mutate:    mockMutate,
+    isPending: false,
+    error:     null,
+    reset:     vi.fn(),
+  }),
+  useUpdateClass: () => ({
+    mutate:    vi.fn(),
+    isPending: false,
+    error:     null,
+    reset:     vi.fn(),
+  }),
+  useDeleteClass: () => ({
+    mutate:    mockDeleteMutate,
+    isPending: false,
+    error:     null,
+    reset:     vi.fn(),
+  }),
+}));
+
+
+
 vi.mock('@/features/subjects/hooks', () => ({
   useSubjects: () => ({
     data: [],
@@ -51,6 +81,15 @@ vi.mock('@/features/subjects/hooks', () => ({
     isError: false,
   }),
 }));
+
+vi.mock('@/features/teachers/hooks', () => ({
+  useTeachers: () => ({
+    data: [],
+    isLoading: false,
+    isError: false,
+  }),
+}));
+
 
 // ---------------------------------------------------------------------------
 // Shared fixtures
@@ -102,6 +141,7 @@ function stubClasses(overrides: Partial<ReturnType<typeof mockUseClasses>> = {})
 
 describe('ClassesView', () => {
   beforeEach(() => {
+    window.scrollTo = vi.fn();
     mockRefetch.mockReset();
     mockMutate.mockReset();
     mockDeleteMutate.mockReset();
@@ -481,6 +521,24 @@ describe('ClassesView', () => {
           onError: expect.any(Function),
         })
       );
+    });
+  });
+
+  describe('class editing modal', () => {
+    it('opens EditClassModal when Edit is selected from card menu', async () => {
+      stubClasses();
+      renderWithProviders(<ClassesView />);
+
+      const actionButtons = screen.getAllByRole('button', { name: /class actions/i });
+      fireEvent.click(actionButtons[0]);
+
+      const editOption = await screen.findByRole('menuitem', { name: /^edit$/i });
+      fireEvent.click(editOption);
+
+      await waitFor(() => {
+        expect(screen.getByRole('dialog')).toBeInTheDocument();
+        expect(screen.getByRole('heading', { name: /edit class/i })).toBeInTheDocument();
+      });
     });
   });
 });

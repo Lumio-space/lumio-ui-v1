@@ -57,6 +57,7 @@ interface SubjectDetailModalProps {
   onAssignTeacher: (offering: SubjectOffering) => void;
   onRemoveOffering: (offeringId: string) => void;
   onDelete?: (subject: SubjectRecord) => void;
+  onEdit?: (subject: SubjectRecord) => void;
 }
 
 
@@ -70,6 +71,7 @@ export function SubjectDetailModal({
   onAssignTeacher,
   onRemoveOffering,
   onDelete,
+  onEdit,
 }: SubjectDetailModalProps) {
   const [tab, setTab] = useState('overview');
 
@@ -113,9 +115,23 @@ export function SubjectDetailModal({
           ) : (
             <div />
           )}
-          <Button variant="outline" size="sm" onClick={onClose}>
-            Close
-          </Button>
+          <div className="flex items-center gap-2">
+            {onEdit && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  onClose();
+                  onEdit(subject);
+                }}
+              >
+                Edit subject
+              </Button>
+            )}
+            <Button variant="outline" size="sm" onClick={onClose}>
+              Close
+            </Button>
+          </div>
         </div>
       }
     >

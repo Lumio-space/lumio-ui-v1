@@ -120,3 +120,23 @@ export async function declineInvitation(
   );
   return response.data;
 }
+
+/**
+ * Cancels/revokes an invitation via DELETE /invites/:id
+ * Protected endpoint.
+ */
+export async function cancelInvitation(
+  invitationIdOrToken: string
+): Promise<{ success: boolean; message?: string }> {
+  try {
+    const response = await apiClient.delete<{ success?: boolean; message?: string }>(
+      `/invites/${encodeURIComponent(invitationIdOrToken)}`
+    );
+    return { success: true, message: response.data?.message };
+  } catch (error) {
+    // If backend returns 404 or 405 (endpoint not yet implemented or already removed),
+    // still return success false without throwing unhandled rejection.
+    return { success: false };
+  }
+}
+

@@ -253,4 +253,45 @@ describe('subjects.api', () => {
       expect(getStoredMetadata()['sub-1']?.classIds).toEqual(['cls-10', 'cls-20']);
     });
   });
+
+  describe('updateSubject and metadata preservation', () => {
+    it('normalizes status casing from backend lowercase to TitleCase', () => {
+      const activeItem = { id: 'sub-act', title: 'Biology', status: 'active' };
+      const inactiveItem = { id: 'sub-ina', title: 'Biology', status: 'inactive' };
+
+      expect(normalizeSubject(activeItem).status).toBe('Active');
+      expect(normalizeSubject(inactiveItem).status).toBe('Inactive');
+    });
+
+    it('preserves existing department and type when only status is updated', async () => {
+      saveSubjectMetadata('sub-sec-1', {
+        section: 'Senior Secondary',
+        department: 'Science',
+        type: 'Compulsory',
+        status: 'Active',
+      });
+
+      vi.mocked(apiClient.patch).mockResolvedValueOnce({
+        data: {
+          id: 'sub-sec-1',
+          title: 'Chemistry',
+          code: 'CHM',
+          status: 'inactive',
+        },
+      });
+
+      const { updateSubject } = await import('../api/subjects.api');
+      const updated = await updateSubject('sub-sec-1', { status: 'Inactive' });
+
+      expect(apiClient.patch).toHaveBeenCalledWith('/subjects/sub-sec-1', { status: 'Inactive' });
+      expect(updated.status).toBe('Inactive');
+      expect(updated.department).toBe('Science');
+      expect(updated.type).toBe('Compulsory');
+
+      const meta = getStoredMetadata()['sub-sec-1'];
+      expect(meta?.department).toBe('Science');
+      expect(meta?.type).toBe('Compulsory');
+      expect(meta?.status).toBe('Inactive');
+    });
+  });
 });

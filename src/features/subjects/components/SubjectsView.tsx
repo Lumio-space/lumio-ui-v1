@@ -64,6 +64,7 @@ import type { ClassRecord } from '@/features/classes/types';
 import { useTeachers } from '@/features/teachers/hooks';
 
 import { CreateSubjectModal } from './CreateSubjectModal';
+import { EditSubjectModal } from './EditSubjectModal';
 import { SubjectDetailModal } from './SubjectDetailModal';
 import { AssignClassesModal } from './AssignClassesModal';
 import { AssignTeacherModal, type TeacherOption } from './AssignTeacherModal';
@@ -132,6 +133,9 @@ export function SubjectsView() {
   const [subjectToDelete, setSubjectToDelete] = useState<SubjectRecord | null>(null);
   const [deleteSubjectError, setDeleteSubjectError] = useState<string | null>(null);
   const deleteSubjectMutation = useDeleteSubject();
+
+  // Edit subject state
+  const [editSubjectTarget, setEditSubjectTarget] = useState<SubjectRecord | null>(null);
 
   useEffect(() => {
     if (successMessage) {
@@ -288,6 +292,7 @@ export function SubjectsView() {
 
   // Toggle active/inactive
   function toggleStatus(subject: SubjectRecord) {
+    if (updateSubjectMutation.isPending) return;
     setStatusUpdateError(null);
     const nextStatus: SubjectStatus =
       subject.status === 'Active' ? 'Inactive' : 'Active';
@@ -814,7 +819,7 @@ export function SubjectsView() {
                                     </DropdownItem>
                                     <DropdownItem
                                       icon={<PencilIcon className="h-4 w-4" />}
-                                      onClick={() => setDetailSubject(s)}
+                                      onClick={() => setEditSubjectTarget(s)}
                                     >
                                       Edit subject
                                     </DropdownItem>
@@ -867,6 +872,17 @@ export function SubjectsView() {
         }}
       />
 
+      {/* ── Edit Subject Modal ── */}
+      <EditSubjectModal
+        open={!!editSubjectTarget}
+        subject={editSubjectTarget}
+        onClose={() => setEditSubjectTarget(null)}
+        onUpdated={(updated) => {
+          setEditSubjectTarget(null);
+          setSuccessMessage(`Subject "${updated.name}" updated successfully.`);
+        }}
+      />
+
       {/* ── Subject Detail Modal ── */}
       <SubjectDetailModal
         subject={detailSubject}
@@ -874,6 +890,7 @@ export function SubjectsView() {
         classes={classes}
         teachers={teachers}
         onClose={() => setDetailSubject(null)}
+        onEdit={(s) => setEditSubjectTarget(s)}
         onAssignClasses={() => {
           if (detailSubject) {
             refetchClasses();

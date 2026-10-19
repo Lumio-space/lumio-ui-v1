@@ -38,10 +38,12 @@ import {
   DEPARTMENT_TONES,
 } from '@/features/classes/constants';
 import { useValidateInvitation, useDeclineInvitation } from '../hooks/useAcceptInvitation';
+import { useInvitationsStore } from '@/stores/invitations.store';
 import { AcceptInviteSkeleton } from './AcceptInviteSkeleton';
 import { cn } from '@/lib/utils';
 
-type LocalState = InviteState | 'declined';
+type LocalState = InviteState | 'declined' | 'cancelled';
+
 
 const HIGHLIGHT_ICONS = {
   calendar: CalendarDaysIcon,
@@ -246,13 +248,26 @@ export function InviteDetailsView({
     expiresOn: inviteData?.expiresAt || '',
   };
 
+  // Check if invitation has been cancelled by an administrator
+  const isCancelledByAdmin =
+    useInvitationsStore.getState().isInvitationCancelled(token) ||
+    Boolean(inviteData?.email && useInvitationsStore.getState().isInvitationCancelled(inviteData.email));
+
   // Determine current effective state
   let currentState: LocalState = localState ?? 'valid';
-  if (isError) {
+  if (isCancelledByAdmin) {
+    currentState = 'cancelled';
+  } else if (isError) {
     const errorMsg = validateError instanceof Error ? validateError.message.toLowerCase() : '';
-    if (errorMsg.includes('already') || errorMsg.includes('accepted')) {
+    if (
+      errorMsg.includes('revoked') ||
+      errorMsg.includes('cancel') ||
+      errorMsg.includes('no longer valid')
+    ) {
+      currentState = 'cancelled';
+    } else if (errorMsg.includes('already') || errorMsg.includes('accepted')) {
       currentState = localState ?? 'used';
-    } else if (errorMsg.includes('revoked') || errorMsg.includes('decline')) {
+    } else if (errorMsg.includes('decline')) {
       currentState = localState ?? 'declined';
     } else if (errorMsg.includes('expired') && !errorMsg.includes('invalid')) {
       currentState = localState ?? 'expired';
@@ -261,7 +276,7 @@ export function InviteDetailsView({
     }
   } else if (inviteData) {
     if (inviteData.status === 'revoked') {
-      currentState = localState ?? 'declined';
+      currentState = 'cancelled';
     } else if (inviteData.status === 'expired') {
       currentState = localState ?? 'expired';
     } else if (inviteData.status === 'accepted') {
@@ -270,6 +285,9 @@ export function InviteDetailsView({
   }
 
   function handleAccept() {
+    if (isCancelledByAdmin || currentState === 'cancelled') {
+      return;
+    }
     setAccepting(true);
     if (onAccept) {
       onAccept(invite.existingAccount);
@@ -280,6 +298,7 @@ export function InviteDetailsView({
       : `${basePath}/setup?token=${encodeURIComponent(token)}`;
     router.push(target);
   }
+
 
   const [declineError, setDeclineError] = useState<string | null>(null);
 
@@ -355,6 +374,34 @@ export function InviteDetailsView({
           <Link href="/login" className="block">
             <Button variant="ghost" size="xl" className="w-full">
               Back to sign in
+            </Button>
+          </Link>
+        </OutcomeCard>
+      </InviteLayout>
+    );
+  }
+
+  /* ------------------------- Cancelled ------------------------- */
+  if (currentState === 'cancelled') {
+    return (
+      <InviteLayout invite={invite} showContext={false}>
+        <OutcomeCard
+          icon={<XCircleIcon className="h-8 w-8" />}
+          tone="red"
+          title="This invitation is no longer valid"
+          description="This invitation is no longer valid. The link may have been revoked or cancelled by an administrator."
+        >
+          <SchoolContext
+            school={invite.school}
+            inviter={invite.inviter}
+            email={invite.invitee.email}
+          />
+          <p className="text-sm text-slate-500">
+            If you need access to this school, please contact your administrator for a new invitation link.
+          </p>
+          <Link href="/login" className="block">
+            <Button size="xl" className="w-full">
+              Go to sign in
             </Button>
           </Link>
         </OutcomeCard>

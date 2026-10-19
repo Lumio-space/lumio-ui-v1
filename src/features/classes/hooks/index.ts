@@ -4,8 +4,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { classQueryKeys }            from '../constants';
 import { subjectQueryKeys }          from '@/features/subjects/constants';
-import { fetchClasses, createClass, deleteClass } from '../api/classes.api';
-import type { CreateClassPayload }   from '../types';
+import { fetchClasses, createClass, deleteClass, updateClass } from '../api/classes.api';
+import type { CreateClassPayload, UpdateClassPayload }   from '../types';
 
 /**
  * Query hook — fetches the list of classes for the current school.
@@ -41,6 +41,22 @@ export function useCreateClass() {
 }
 
 /**
+ * Mutation hook — updates an existing class.
+ */
+export function useUpdateClass() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: UpdateClassPayload }) =>
+      updateClass(id, payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: classQueryKeys.all });
+      queryClient.invalidateQueries({ queryKey: subjectQueryKeys.all });
+    },
+  });
+}
+
+/**
  * Mutation hook — deletes a class by ID.
  */
 export function useDeleteClass() {
@@ -54,4 +70,5 @@ export function useDeleteClass() {
     },
   });
 }
+
 

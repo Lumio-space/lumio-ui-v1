@@ -68,3 +68,26 @@ export async function deleteClass(id: string): Promise<{ success: boolean }> {
   return response.data;
 }
 
+export async function updateClass(id: string, payload: import('../types').UpdateClassPayload): Promise<ClassRecord> {
+  const isSeniorSecondary = payload.schoolLevel === 'senior_secondary';
+
+  const cleanPayload: Record<string, unknown> = {};
+  if (payload.schoolLevel !== undefined) cleanPayload.schoolLevel = payload.schoolLevel;
+  if (payload.gradeLevel !== undefined) {
+    cleanPayload.gradeLevel = normalizeGradeLevelForBackend(payload.gradeLevel);
+  }
+  if (payload.gradeSection !== undefined) cleanPayload.gradeSection = payload.gradeSection;
+  if (payload.room !== undefined) cleanPayload.room = payload.room;
+  if (payload.capacity !== undefined) cleanPayload.capacity = payload.capacity;
+
+  if (payload.department !== undefined || payload.schoolLevel !== undefined) {
+    cleanPayload.department = isSeniorSecondary && payload.department && payload.department !== 'Nill'
+      ? String(payload.department)
+      : 'Nill';
+  }
+
+  const response = await apiClient.patch<ClassRecord>(`/classes/${id}`, cleanPayload);
+  return response.data;
+}
+
+

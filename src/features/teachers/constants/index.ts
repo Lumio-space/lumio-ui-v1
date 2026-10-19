@@ -20,6 +20,7 @@ export const inviteStatusTone: Record<InviteStatus, 'gold' | 'green' | 'slate' |
   Accepted: 'green',
   Declined: 'slate',
   Expired: 'red',
+  Revoked: 'red',
 };
 
 /** Human-readable assignment status used across teacher and class views */
@@ -27,6 +28,7 @@ export function assignmentLabel(status: InviteStatus): string {
   if (status === 'Accepted') return 'Active — Form Teacher';
   if (status === 'Pending') return 'Invitation Pending';
   if (status === 'Declined') return 'Invitation Declined';
+  if (status === 'Revoked') return 'Invitation Revoked';
   return 'Invitation Expired';
 }
 

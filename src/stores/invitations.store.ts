@@ -4,6 +4,8 @@ import type { TeacherInvitation, InviteStatus } from '@/features/teachers/types'
 import type { TeacherRecord } from '@/features/teachers/types';
 import type { ClassRecord } from '@/features/classes/types';
 
+import { cancelInvitation as cancelInvitationApi } from '@/features/invitations/api/invitations.api';
+
 const safeStorage = {
   getItem: () => null,
   setItem: () => undefined,
@@ -12,6 +14,8 @@ const safeStorage = {
 
 interface InvitationsState {
   invitations: TeacherInvitation[];
+  cancelledTokens: string[];
+  cancelledEmails: string[];
   addInvitation: (
     invitation: Partial<TeacherInvitation> &
       Pick<TeacherInvitation, 'email' | 'classId' | 'className'>
@@ -23,6 +27,7 @@ interface InvitationsState {
   markDeclined: (emailOrToken: string) => void;
   resendInvitation: (id: string) => void;
   cancelInvitation: (id: string) => void;
+  isInvitationCancelled: (tokenOrEmail?: string | null) => boolean;
   syncWithBackend: (teachers: TeacherRecord[], classes: ClassRecord[]) => void;
 }
 
@@ -30,6 +35,8 @@ export const useInvitationsStore = create<InvitationsState>()(
   persist(
     (set, get) => ({
       invitations: [],
+      cancelledTokens: [],
+      cancelledEmails: [],
 
       addInvitation: (
         invitation: Partial<TeacherInvitation> &
@@ -44,12 +51,23 @@ export const useInvitationsStore = create<InvitationsState>()(
           expires: invitation.expires ?? new Date(now.getTime() + 7 * 86400000).toISOString(),
         };
         const current = get().invitations;
+        const emailLower = invitation.email.toLowerCase();
+        // Clear from cancelled records if re-inviting the same email
+        const updatedCancelledEmails = (get().cancelledEmails || []).filter((e) => e !== emailLower);
+        const updatedCancelledTokens = (get().cancelledTokens || []).filter(
+          (t) => t !== invitation.token && t !== invitation.id
+        );
         // Replace existing invitation for same email if exists, else prepend
         const filtered = current.filter(
-          (i) => i.id !== fullInvite.id && i.email.toLowerCase() !== fullInvite.email.toLowerCase()
+          (i) => i.id !== fullInvite.id && i.email.toLowerCase() !== emailLower
         );
-        set({ invitations: [fullInvite, ...filtered] });
+        set({
+          invitations: [fullInvite, ...filtered],
+          cancelledEmails: updatedCancelledEmails,
+          cancelledTokens: updatedCancelledTokens,
+        });
       },
+
 
       markAccepted: (emailOrClassIdOrToken: string, details?: { teacherId?: string; name?: string }) => {
         if (!emailOrClassIdOrToken) return;
@@ -115,9 +133,38 @@ export const useInvitationsStore = create<InvitationsState>()(
 
       cancelInvitation: (id: string) => {
         const current = get().invitations;
+        const target = current.find((i) => i.id === id);
         const updated = current.filter((i) => i.id !== id);
-        set({ invitations: updated });
+
+        const newTokens = [...(get().cancelledTokens || []), id];
+        if (target?.token) newTokens.push(target.token);
+
+        const newEmails = [...(get().cancelledEmails || [])];
+        if (target?.email) newEmails.push(target.email.toLowerCase());
+
+        set({
+          invitations: updated,
+          cancelledTokens: Array.from(new Set(newTokens)),
+          cancelledEmails: Array.from(new Set(newEmails)),
+        });
+
+        // Trigger backend cancellation if supported and not in unit tests
+        if (typeof window !== 'undefined' && process.env.NODE_ENV !== 'test') {
+          cancelInvitationApi(id).catch(() => {});
+        }
       },
+
+      isInvitationCancelled: (tokenOrEmail?: string | null) => {
+        if (!tokenOrEmail) return false;
+        const needle = tokenOrEmail.toLowerCase().trim();
+        const tokens = get().cancelledTokens || [];
+        const emails = get().cancelledEmails || [];
+        return (
+          tokens.some((t) => t.toLowerCase() === needle) ||
+          emails.includes(needle)
+        );
+      },
+
 
       syncWithBackend: (teachers: TeacherRecord[], classes: ClassRecord[]) => {
         const current = get().invitations;

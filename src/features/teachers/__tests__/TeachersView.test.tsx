@@ -177,7 +177,7 @@ describe('TeachersView', () => {
     expect(screen.getByRole('button', { name: /resend/i })).toBeInTheDocument();
   });
 
-  it('switches to class assignments tab and shows unassigned class with Invite button', async () => {
+  it('switches to class assignments tab and shows unassigned class with Assign button', async () => {
     const user = userEvent.setup();
     renderWithProviders(<TeachersView />);
 
@@ -187,15 +187,47 @@ describe('TeachersView', () => {
     expect(screen.getByText('Primary 1 A')).toBeInTheDocument();
     expect(screen.getByText('No form teacher assigned')).toBeInTheDocument();
 
-    const inviteBtn = screen.getByRole('button', { name: /^invite$/i });
-    await user.click(inviteBtn);
+    const assignBtn = screen.getByRole('button', { name: /^assign$/i });
+    await user.click(assignBtn);
 
-    // Should open the invite modal
+    // Should open the assign form teacher modal
     await waitFor(() => {
       expect(screen.getByRole('dialog')).toBeInTheDocument();
-      expect(screen.getByText('Invite a teacher')).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: /assign form teacher/i })).toBeInTheDocument();
     });
   });
+
+  it('opens cancel confirmation modal when revoking an invitation', async () => {
+    const user = userEvent.setup();
+    const mockRevoke = vi.fn();
+    mockUseInvitations.mockReturnValue({
+      invitations: MOCK_INVITATIONS,
+      addInvitation: vi.fn(),
+      resendInvitation: vi.fn(),
+      revokeInvitation: mockRevoke,
+    });
+
+    renderWithProviders(<TeachersView />);
+
+    const invitesTab = screen.getByRole('tab', { name: /invitations/i });
+    await user.click(invitesTab);
+
+    const revokeBtn = screen.getByRole('button', { name: /revoke invitation/i });
+    await user.click(revokeBtn);
+
+    // Confirmation modal appears
+    await waitFor(() => {
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: /cancel invitation\?/i })).toBeInTheDocument();
+    });
+
+    // Clicking confirm cancels the invitation
+    const confirmBtn = screen.getByRole('button', { name: /^cancel invitation$/i });
+    await user.click(confirmBtn);
+
+    expect(mockRevoke).toHaveBeenCalledWith('inv-1');
+  });
+
 
   it('opens wizard when header "Invite teacher" button is clicked', async () => {
     const user = userEvent.setup();

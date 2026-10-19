@@ -61,6 +61,7 @@ import { TeacherDetailModal } from './TeacherDetailModal';
 import { InviteTeacherModal } from './InviteTeacherModal';
 import { AssignFormTeacherModal } from './AssignFormTeacherModal';
 import { AssignTeacherSubjectModal } from './AssignTeacherSubjectModal';
+import { Modal } from '@/components/shared/Modal';
 import type {
   TeacherRecord,
   TeacherInvitation,
@@ -123,12 +124,15 @@ export function TeachersView() {
   const [view, setView] = useState<'grid' | 'list'>('grid');
   const [detailTeacher, setDetailTeacher] = useState<TeacherRecord | null>(null);
   const [assignFormTeacherTarget, setAssignFormTeacherTarget] = useState<TeacherRecord | null>(null);
+  const [assignClassTarget, setAssignClassTarget] = useState<ClassRecord | null>(null);
   const [assignSubjectTarget, setAssignSubjectTarget] = useState<TeacherRecord | null>(null);
 
   // Invitation state
   const [inviteQuery, setInviteQuery] = useState('');
   const [inviteFilter, setInviteFilter] = useState<InviteStatus | 'All'>('All');
   const [resentId, setResentId] = useState<string | null>(null);
+  const [cancelTargetInvite, setCancelTargetInvite] = useState<TeacherInvitation | null>(null);
+
 
   // Wizard state
   const [wizardOpen, setWizardOpen] = useState(initialInviteParam);
@@ -549,7 +553,7 @@ export function TeachersView() {
                             {invite.status === 'Pending' && (
                               <button
                                 type="button"
-                                onClick={() => revokeInvitation(invite.id)}
+                                onClick={() => setCancelTargetInvite(invite)}
                                 aria-label={`Revoke invitation for ${invite.name || invite.email}`}
                                 className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-500"
                               >
@@ -571,9 +575,10 @@ export function TeachersView() {
         {tab === 'assignments' && (
           <div className="p-4 sm:p-6">
             <p className="mb-4 px-1 text-sm text-slate-500">
-              Every class is led by one Form Teacher. Invite a teacher to any class
-              that is still unassigned.
+              Assign a form teacher to each class. Only teachers who have already
+              joined the school can be assigned.
             </p>
+
 
             {classesLoading ? (
               <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
@@ -675,9 +680,9 @@ export function TeachersView() {
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => openWizard()}
+                          onClick={() => setAssignClassTarget(c)}
                         >
-                          Invite
+                          Assign
                         </Button>
                       )}
                     </div>
@@ -705,12 +710,67 @@ export function TeachersView() {
         }}
       />
 
-      {/* Assign Form Teacher Modal */}
+      {/* Assign Form Teacher Modal (Teacher mode) */}
       <AssignFormTeacherModal
         open={!!assignFormTeacherTarget}
         onClose={() => setAssignFormTeacherTarget(null)}
         teacher={assignFormTeacherTarget}
       />
+
+      {/* Assign Form Teacher Modal (Class mode) */}
+      <AssignFormTeacherModal
+        open={!!assignClassTarget}
+        onClose={() => setAssignClassTarget(null)}
+        targetClass={assignClassTarget}
+        onInviteTeacher={() => {
+          setAssignClassTarget(null);
+          openWizard();
+        }}
+      />
+
+      {/* Cancel Invitation Confirmation Modal */}
+      <Modal
+        open={!!cancelTargetInvite}
+        onClose={() => setCancelTargetInvite(null)}
+        title="Cancel invitation?"
+        description="This will immediately invalidate the invitation link. The recipient will not be able to use this link to join the school."
+        size="sm"
+        footer={
+          <>
+            <Button
+              variant="ghost"
+              onClick={() => setCancelTargetInvite(null)}
+            >
+              Keep invitation
+            </Button>
+            <Button
+              variant="danger"
+              onClick={() => {
+                if (cancelTargetInvite) {
+                  revokeInvitation(cancelTargetInvite.id);
+                  setCancelTargetInvite(null);
+                }
+              }}
+            >
+              Cancel invitation
+            </Button>
+          </>
+        }
+      >
+        {cancelTargetInvite && (
+          <p className="text-sm text-slate-600">
+            Are you sure you want to cancel the invitation sent to{' '}
+            <span className="font-semibold text-slate-900">
+              {cancelTargetInvite.name || cancelTargetInvite.email}
+            </span>
+            {cancelTargetInvite.className ? (
+              <> for <span className="font-semibold text-slate-900">{cancelTargetInvite.className}</span></>
+            ) : null}
+            ?
+          </p>
+        )}
+      </Modal>
+
 
       {/* Assign Subject Modal */}
       <AssignTeacherSubjectModal

@@ -5,7 +5,7 @@
  * and UI view models migrated from lumio-react.
  */
 
-export type InviteStatus = 'Pending' | 'Accepted' | 'Declined' | 'Expired';
+export type InviteStatus = 'Pending' | 'Accepted' | 'Declined' | 'Expired' | 'Revoked';
 
 export type BackendInviteStatus = 'pending' | 'viewed' | 'accepted' | 'expired' | 'revoked';
 

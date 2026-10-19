@@ -98,6 +98,29 @@ describe('AcceptInviteView (lumio-react flow)', () => {
     });
   });
 
+  it('renders dedicated cancelled/revoked outcome when invitation was cancelled or revoked', async () => {
+    vi.spyOn(teachersApi, 'validateInvitationToken').mockRejectedValue(
+      new Error('This invitation has been revoked or cancelled by an administrator')
+    );
+
+    renderWithProviders(<AcceptInviteView />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toBeInTheDocument();
+      expect(screen.getByText('This invitation is no longer valid')).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          'This invitation is no longer valid. The link may have been revoked or cancelled by an administrator.'
+        )
+      ).toBeInTheDocument();
+      expect(screen.getByRole('link', { name: /go to sign in/i })).toHaveAttribute(
+        'href',
+        '/login'
+      );
+    });
+  });
+
+
   it('renders network error state with retry button on connection failure', async () => {
     const mockRefetch = vi
       .spyOn(teachersApi, 'validateInvitationToken')

@@ -74,19 +74,51 @@ describe('useInvitationsStore - Invitation Lifecycle & Sync', () => {
     expect(new Date(updated.expires).getTime()).toBeGreaterThan(Date.now());
   });
 
-  it('removes invitation on cancelInvitation', () => {
+  it('removes invitation on cancelInvitation and marks token and email as cancelled', () => {
     useInvitationsStore.getState().addInvitation({
       email: 'jane.doe@school.edu',
       classId: 'cls-101',
       className: 'Primary 1 A',
       status: 'Pending',
+      token: 'tok-secret-123',
     });
 
     const invite = useInvitationsStore.getState().invitations[0];
     useInvitationsStore.getState().cancelInvitation(invite.id);
 
     expect(useInvitationsStore.getState().invitations).toHaveLength(0);
+    expect(useInvitationsStore.getState().isInvitationCancelled(invite.id)).toBe(true);
+    expect(useInvitationsStore.getState().isInvitationCancelled('tok-secret-123')).toBe(true);
+    expect(useInvitationsStore.getState().isInvitationCancelled('jane.doe@school.edu')).toBe(true);
   });
+
+  it('allows administrator to re-invite the same email after cancellation', () => {
+    useInvitationsStore.getState().addInvitation({
+      email: 'reinvite@school.edu',
+      classId: 'cls-101',
+      className: 'Primary 1 A',
+      status: 'Pending',
+      token: 'old-token',
+    });
+
+    const oldInvite = useInvitationsStore.getState().invitations[0];
+    useInvitationsStore.getState().cancelInvitation(oldInvite.id);
+    expect(useInvitationsStore.getState().isInvitationCancelled('reinvite@school.edu')).toBe(true);
+
+    // Re-invite
+    useInvitationsStore.getState().addInvitation({
+      email: 'reinvite@school.edu',
+      classId: 'cls-102',
+      className: 'Primary 2 B',
+      status: 'Pending',
+      token: 'new-token',
+    });
+
+    expect(useInvitationsStore.getState().invitations).toHaveLength(1);
+    expect(useInvitationsStore.getState().isInvitationCancelled('reinvite@school.edu')).toBe(false);
+    expect(useInvitationsStore.getState().isInvitationCancelled('new-token')).toBe(false);
+  });
+
 
   it('syncWithBackend automatically marks invitations as Accepted if teacher or class already exists', () => {
     useInvitationsStore.getState().addInvitation({

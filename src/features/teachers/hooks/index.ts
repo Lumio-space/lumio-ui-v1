@@ -137,6 +137,7 @@ export function useInvitations() {
   const markAccepted = useInvitationsStore((s) => s.markAccepted);
   const markDeclined = useInvitationsStore((s) => s.markDeclined);
   const syncWithBackend = useInvitationsStore((s) => s.syncWithBackend);
+  const isInvitationCancelled = useInvitationsStore((s) => s.isInvitationCancelled);
 
   return {
     invitations,
@@ -145,6 +146,7 @@ export function useInvitations() {
     resendInvitation,
     revokeInvitation: cancelInvitation,
     cancelInvitation,
+    isInvitationCancelled,
     markAccepted,
     markDeclined,
     syncWithBackend,

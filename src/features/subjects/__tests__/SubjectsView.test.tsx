@@ -242,5 +242,56 @@ describe('SubjectsView', () => {
         expect(screen.getByText('MTH · Primary')).toBeInTheDocument();
       });
     });
+
+    it('opens EditSubjectModal when "Edit subject" action is clicked', async () => {
+      renderWithProviders(<SubjectsView />);
+
+      const actionTrigger = screen.getByLabelText('Actions for Mathematics');
+      fireEvent.click(actionTrigger);
+
+      const editBtn = screen.getByText('Edit subject');
+      fireEvent.click(editBtn);
+
+      await waitFor(() => {
+        expect(screen.getByRole('heading', { name: /edit subject/i })).toBeInTheDocument();
+        expect(screen.getByDisplayValue('Mathematics')).toBeInTheDocument();
+        expect(screen.getByDisplayValue('MTH')).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe('status action labels', () => {
+    it('displays "Mark inactive" for active subjects and "Mark active" for inactive subjects', () => {
+      stubData({
+        subjects: [
+          {
+            id: 'sub-active',
+            name: 'Active Subject',
+            code: 'ACT',
+            section: 'Primary',
+            status: 'Active',
+            createdOn: '2026-01-10',
+          },
+          {
+            id: 'sub-inactive',
+            name: 'Inactive Subject',
+            code: 'INA',
+            section: 'Primary',
+            status: 'Inactive',
+            createdOn: '2026-01-10',
+          },
+        ],
+      });
+
+      renderWithProviders(<SubjectsView />);
+
+      const activeActions = screen.getByLabelText('Actions for Active Subject');
+      fireEvent.click(activeActions);
+      expect(screen.getByText('Mark inactive')).toBeInTheDocument();
+
+      const inactiveActions = screen.getByLabelText('Actions for Inactive Subject');
+      fireEvent.click(inactiveActions);
+      expect(screen.getByText('Mark active')).toBeInTheDocument();
+    });
   });
 });

@@ -147,4 +147,8 @@ export const acceptExistingUserInvitation = (payload: AcceptExistingPayload) =>
 export const declineInvitation = (payload: DeclineInvitationPayload) =>
   invitationsApi.declineInvitation(payload);
 
+export const cancelInvitation = (invitationIdOrToken: string) =>
+  invitationsApi.cancelInvitation(invitationIdOrToken);
+
+
 

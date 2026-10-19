@@ -78,3 +78,13 @@ export type CreateClassPayload = {
   room:         number;
   department?:  Department;
 };
+
+export type UpdateClassPayload = {
+  gradeLevel?:   GradeLevel | string;
+  gradeSection?: string;
+  schoolLevel?:  SchoolLevel;
+  capacity?:     number;
+  room?:         number;
+  department?:   Department;
+};
+

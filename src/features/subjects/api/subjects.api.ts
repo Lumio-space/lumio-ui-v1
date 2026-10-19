@@ -90,7 +90,10 @@ export function saveSubjectMetadata(id: string, meta: SubjectLocalMeta) {
   if (typeof window === 'undefined') return;
   try {
     const all = getStoredMetadata();
-    all[id] = { ...all[id], ...meta };
+    const cleanMeta = Object.fromEntries(
+      Object.entries(meta).filter(([_, v]) => v !== undefined)
+    );
+    all[id] = { ...all[id], ...cleanMeta };
     localStorage.setItem(METADATA_STORAGE_KEY, JSON.stringify(all));
   } catch {
     // Ignore storage write errors in restricted environments
@@ -130,6 +133,9 @@ export function normalizeSubject(item: BackendSubjectItem): SubjectRecord {
 
   const classIds = item.classIds?.length ? item.classIds : (storedMeta.classIds || []);
 
+  const rawStatus = (item.status || storedMeta.status || 'Active').toLowerCase();
+  const status: SubjectStatus = rawStatus === 'inactive' ? 'Inactive' : 'Active';
+
   return {
     id: item.id,
     schoolId: item.schoolId,
@@ -138,7 +144,7 @@ export function normalizeSubject(item: BackendSubjectItem): SubjectRecord {
     section,
     department: isSeniorSec ? normalizedDept : undefined,
     type: isSeniorSec ? normalizedType : undefined,
-    status: (item.status as SubjectRecord['status']) || storedMeta.status || 'Active',
+    status,
     createdOn:
       item.createdOn ||
       (item.createdAt ? item.createdAt.slice(0, 10) : new Date().toISOString().slice(0, 10)),
@@ -238,11 +244,37 @@ export async function updateSubject(
   id: string,
   payload: UpdateSubjectPayload
 ): Promise<SubjectRecord> {
+  const backendPayload: Record<string, unknown> = {};
+  if (payload.name !== undefined) backendPayload.name = payload.name.trim();
+  if (payload.code !== undefined) backendPayload.code = payload.code.trim().toUpperCase();
+  if (payload.status !== undefined) backendPayload.status = payload.status;
+  if (payload.section !== undefined) {
+    const normalizedSection =
+      SECTION_TO_BACKEND_ENUM[payload.section] ?? payload.section.toLowerCase();
+    backendPayload.section = normalizedSection;
+    backendPayload.schoolLevel = normalizedSection;
+  }
+  if (payload.department !== undefined) {
+    backendPayload.department = mapDepartmentToBackend(payload.department);
+  }
+  if (payload.type !== undefined) {
+    backendPayload.subjectType = payload.type.toLowerCase();
+  }
+  if (payload.classIds !== undefined) {
+    backendPayload.classIds = payload.classIds;
+  }
+
   const response = await apiClient.patch<BackendSubjectItem>(
     `/subjects/${id}`,
-    payload
+    backendPayload
   );
-  if (payload.section || payload.department || payload.type || payload.status || payload.classIds) {
+  if (
+    payload.section !== undefined ||
+    payload.department !== undefined ||
+    payload.type !== undefined ||
+    payload.status !== undefined ||
+    payload.classIds !== undefined
+  ) {
     saveSubjectMetadata(id, {
       section: payload.section,
       department: payload.department,
