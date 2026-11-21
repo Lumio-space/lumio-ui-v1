@@ -1,23 +1,62 @@
 'use client';
 
+/**
+ * MySubjectsView
+ *
+ * Teacher-scoped subjects view and subject allocation drill-down.
+ * Migrated from lumio-react/src/pages/MySubjectsPage.tsx.
+ *
+ * Scopes subjects strictly to assignments granted to the authenticated teacher.
+ */
+
 import { useMemo, useState } from 'react';
+import Link from 'next/link';
+import { motion } from 'framer-motion';
 import {
   BookOpenIcon,
   SearchIcon,
   LayersIcon,
+  ChevronLeftIcon,
+  LockIcon,
+  UsersIcon,
+  ArrowRightIcon,
+  MapPinIcon,
 } from 'lucide-react';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { Badge } from '@/components/shared/Badge';
 import { StatCard } from '@/components/shared/StatCard';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { useSubjects } from '@/features/subjects/hooks';
+import { useClasses } from '@/features/classes/hooks';
 import { useAuthStore } from '@/stores/auth.store';
+import { TeachingContextModal } from '@/features/classes/components/TeachingContextModal';
+import { composeClassName, GRADE_LEVEL_LABELS } from '@/features/classes/constants';
 import type { SubjectRecord } from '@/features/subjects/types';
+import type { ClassRecord } from '@/features/classes/types';
 
 export function MySubjectsView() {
   const user = useAuthStore((s) => s.user);
-  const { data: subjects = [], isLoading, error } = useSubjects();
+  const { data: rawSubjects = [], isLoading: subjectsLoading, error } = useSubjects();
+  const { data: rawClasses = [], isLoading: classesLoading } = useClasses();
+
+  const subjects: SubjectRecord[] = useMemo(() => {
+    if (Array.isArray(rawSubjects)) return rawSubjects;
+    return (rawSubjects as any)?.data || (rawSubjects as any)?.subjects || [];
+  }, [rawSubjects]);
+
+  const classes: ClassRecord[] = useMemo(() => {
+    if (Array.isArray(rawClasses)) return rawClasses;
+    return (rawClasses as any)?.data || (rawClasses as any)?.classes || [];
+  }, [rawClasses]);
+
   const [query, setQuery] = useState('');
+  const [sectionFilter, setSectionFilter] = useState('all');
+  const [openSubject, setOpenSubject] = useState<SubjectRecord | null>(null);
+  const [selectedContext, setSelectedContext] = useState<{
+    subject: SubjectRecord;
+    classRecord: ClassRecord;
+  } | null>(null);
 
   // Filter subjects assigned to this teacher
   const mySubjects = useMemo(() => {
@@ -33,19 +72,48 @@ export function MySubjectsView() {
     });
   }, [subjects, user]);
 
+  // Find classes where teacher teaches the openSubject
+  const classesForOpenSubject = useMemo(() => {
+    if (!openSubject || !user) return [];
+    return classes.filter((c: ClassRecord) => {
+      const matchesOffering = openSubject.offerings?.some(
+        (o) =>
+          o.classId === c.id &&
+          ((user.id && o.teacherIds?.includes(user.id)) ||
+            (user.classId && o.classId === user.classId))
+      );
+      const matchesDirectClass = Boolean(
+        user.classId &&
+          user.classId === c.id &&
+          openSubject.classIds?.includes(c.id)
+      );
+      return matchesOffering || matchesDirectClass;
+    });
+  }, [classes, openSubject, user]);
+
+  const totalStudentsInOpenSubject = useMemo(() => {
+    return classesForOpenSubject.reduce((acc, c) => acc + (c.students ?? 0), 0);
+  }, [classesForOpenSubject]);
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return mySubjects;
-    return mySubjects.filter(
-      (s: SubjectRecord) =>
+    return mySubjects.filter((s: SubjectRecord) => {
+      const matchQ =
+        !q ||
         s.name?.toLowerCase().includes(q) ||
         s.code?.toLowerCase().includes(q) ||
         s.section?.toLowerCase().includes(q) ||
-        s.department?.toLowerCase().includes(q)
-    );
-  }, [mySubjects, query]);
+        s.department?.toLowerCase().includes(q);
 
-  if (isLoading) {
+      const matchSection =
+        sectionFilter === 'all' ||
+        s.section?.toLowerCase() === sectionFilter.toLowerCase();
+
+      return matchQ && matchSection;
+    });
+  }, [mySubjects, query, sectionFilter]);
+
+  if (subjectsLoading || classesLoading) {
     return (
       <div className="space-y-6">
         <PageHeader
@@ -61,6 +129,153 @@ export function MySubjectsView() {
     );
   }
 
+  /* ------------------- Subject Drill-Down View (lumio-react) ------------------- */
+  if (openSubject) {
+    return (
+      <div className="space-y-6">
+        <button
+          onClick={() => setOpenSubject(null)}
+          className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 transition-colors hover:text-indigo-800"
+        >
+          <ChevronLeftIcon className="h-4 w-4" />
+          Back to My Subjects
+        </button>
+
+        <PageHeader
+          title={openSubject.name}
+          description="Classes you teach this subject in. Other classes taking this subject are not in your workload."
+        />
+
+        {/* Subject Overview Card matching lumio-react */}
+        <Card className="border-slate-100 bg-white p-6 shadow-xs">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="flex h-7 w-12 items-center justify-center rounded-lg bg-indigo-50 font-display text-xs font-extrabold text-indigo-700">
+              {openSubject.code}
+            </span>
+            <Badge tone="indigo">{openSubject.section}</Badge>
+            {openSubject.department && (
+              <Badge tone="purple" dot>
+                {openSubject.department}
+              </Badge>
+            )}
+            {openSubject.type && <Badge tone="slate">{openSubject.type}</Badge>}
+            <span className="flex items-center gap-1 text-xs text-slate-400 ml-auto">
+              <LockIcon className="h-3 w-3" />
+              Set by school administrator
+            </span>
+          </div>
+
+          <dl className="mt-4 grid gap-3 sm:grid-cols-2">
+            <div className="rounded-xl bg-slate-50 p-3.5">
+              <dt className="text-xs text-slate-500">Classes Taught</dt>
+              <dd className="font-display text-xl font-extrabold text-slate-900 mt-0.5">
+                {classesForOpenSubject.length}
+              </dd>
+            </div>
+            <div className="rounded-xl bg-slate-50 p-3.5">
+              <dt className="text-xs text-slate-500">Students Taking Subject</dt>
+              <dd className="font-display text-xl font-extrabold text-slate-900 mt-0.5">
+                {totalStudentsInOpenSubject}
+              </dd>
+            </div>
+          </dl>
+        </Card>
+
+        {/* Classes Taught in this Subject */}
+        <div>
+          <h2 className="mb-3 font-display text-sm font-bold uppercase tracking-wide text-slate-500">
+            Classes You Teach in {openSubject.name} · {classesForOpenSubject.length}
+          </h2>
+
+          {classesForOpenSubject.length === 0 ? (
+            <Card className="border-slate-100 bg-white p-6 text-center text-xs text-slate-500">
+              <LayersIcon className="h-8 w-8 text-slate-300 mx-auto mb-2" />
+              No specific class allocations active for this subject yet.
+            </Card>
+          ) : (
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              {classesForOpenSubject.map((c, i) => {
+                const gradeLabel = GRADE_LEVEL_LABELS[c.grade] ?? c.grade;
+                const dept =
+                  c.department && c.department !== 'Nill' ? c.department : undefined;
+                const className = composeClassName(gradeLabel, dept, c.section);
+                const isForm =
+                  c.id === user?.classId ||
+                  c.formTeacher === user?.name ||
+                  c.formTeacher === user?.id;
+
+                return (
+                  <motion.button
+                    key={c.id}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.25, delay: Math.min(i * 0.04, 0.2) }}
+                    onClick={() =>
+                      setSelectedContext({
+                        subject: openSubject,
+                        classRecord: c,
+                      })
+                    }
+                    className="flex h-full flex-col rounded-2xl border border-slate-100 bg-white p-5 text-left shadow-xs transition-shadow hover:shadow-card"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <span className="block font-display text-base font-extrabold text-slate-900">
+                          {className}
+                        </span>
+                        {c.room && (
+                          <span className="mt-1 flex items-center gap-1 text-xs text-slate-400">
+                            <MapPinIcon className="h-3 w-3" />
+                            Room {c.room}
+                          </span>
+                        )}
+                      </div>
+                      {isForm && (
+                        <Badge tone="gold" dot>
+                          Form
+                        </Badge>
+                      )}
+                    </div>
+
+                    <p className="mt-4 flex items-center gap-1.5 text-xs text-slate-500">
+                      <UsersIcon className="h-3.5 w-3.5 text-slate-400" />
+                      <span className="font-semibold text-slate-700">
+                        {c.students ?? 0}
+                      </span>{' '}
+                      students enrolled
+                    </p>
+
+                    <span className="mt-auto inline-flex items-center gap-1.5 pt-4 text-xs font-semibold text-indigo-700">
+                      Open teaching context
+                      <ArrowRightIcon className="h-3.5 w-3.5" />
+                    </span>
+                  </motion.button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Teaching Context Modal */}
+        {selectedContext && (
+          <TeachingContextModal
+            open={Boolean(selectedContext)}
+            subject={selectedContext.subject}
+            classRecord={selectedContext.classRecord}
+            currentTeacherName={user?.name ?? 'Teacher'}
+            isFormTeacher={
+              selectedContext.classRecord.id === user?.classId ||
+              selectedContext.classRecord.formTeacher === user?.name ||
+              selectedContext.classRecord.formTeacher === user?.id
+            }
+            onClose={() => setSelectedContext(null)}
+          />
+        )}
+      </div>
+    );
+  }
+
+  /* ------------------- Subjects List View ------------------- */
   return (
     <div className="space-y-6">
       <PageHeader
@@ -83,7 +298,10 @@ export function MySubjectsView() {
         />
         <StatCard
           label="Active Allocations"
-          value={mySubjects.reduce((acc, s) => acc + (s.classIds?.length ?? 0), 0)}
+          value={mySubjects.reduce(
+            (acc, s) => acc + (s.classIds?.length ?? 0),
+            0
+          )}
           icon={<LayersIcon className="h-5 w-5" />}
           tone="purple"
           delay={0.05}
@@ -106,62 +324,75 @@ export function MySubjectsView() {
         </Card>
       ) : (
         <>
-          <div className="relative">
-            <SearchIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-            <input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search my subjects…"
-              aria-label="Search my subjects"
-              className="h-10 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-4 text-sm focus:border-purple-400 focus:outline-none focus:ring-2 focus:ring-purple-100"
-            />
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <div className="relative flex-1">
+              <SearchIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search my subjects…"
+                aria-label="Search my subjects"
+                className="h-10 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-4 text-sm text-slate-800 placeholder:text-slate-400 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100"
+              />
+            </div>
+            <select
+              value={sectionFilter}
+              onChange={(e) => setSectionFilter(e.target.value)}
+              aria-label="Filter by school level"
+              className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100 min-w-[140px]"
+            >
+              <option value="all">All Levels</option>
+              <option value="Nursery">Nursery</option>
+              <option value="Primary">Primary</option>
+              <option value="Junior Secondary">Junior Secondary</option>
+              <option value="Senior Secondary">Senior Secondary</option>
+            </select>
           </div>
 
           {filtered.length === 0 ? (
             <Card className="border-slate-100 bg-white">
               <CardContent className="p-8 text-center text-sm text-slate-500">
-                No subjects match your search query.
+                No subjects match your filter query.
               </CardContent>
             </Card>
           ) : (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-              {filtered.map((s: SubjectRecord) => {
-                const assignedClassesCount = s.classIds?.length ?? 0;
-                return (
-                  <div
-                    key={s.id}
-                    className="flex flex-col rounded-2xl border border-slate-100 bg-white p-5 shadow-xs transition-shadow hover:shadow-card"
-                  >
-                    <div className="flex items-start gap-3">
-                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-indigo-50 font-display text-xs font-extrabold text-indigo-700">
-                        {s.code}
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <span className="block font-display text-base font-extrabold text-slate-900 truncate">
-                          {s.name}
-                        </span>
-                        <div className="mt-1 flex flex-wrap gap-1.5">
-                          <Badge tone="indigo">{s.section}</Badge>
-                          {s.department && (
-                            <Badge tone="purple">{s.department}</Badge>
-                          )}
-                          {s.type && <Badge tone="slate">{s.type}</Badge>}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="mt-4 rounded-xl bg-slate-50 p-3">
-                      <p className="text-xs text-slate-500">
-                        Assigned to{' '}
-                        <span className="font-semibold text-slate-700">
-                          {assignedClassesCount}
-                        </span>{' '}
-                        {assignedClassesCount === 1 ? 'class' : 'classes'}
-                      </p>
-                    </div>
+              {filtered.map((s: SubjectRecord) => (
+                <div
+                  key={s.id}
+                  onClick={() => setOpenSubject(s)}
+                  className="flex flex-col cursor-pointer rounded-2xl border border-slate-100 bg-white p-5 shadow-xs transition-all hover:border-indigo-200 hover:shadow-card"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <span className="flex h-9 w-12 shrink-0 items-center justify-center rounded-xl bg-indigo-50 font-display text-xs font-extrabold text-indigo-700">
+                      {s.code}
+                    </span>
+                    <Badge tone="indigo">{s.section}</Badge>
                   </div>
-                );
-              })}
+
+                  <h3 className="mt-3 font-display text-base font-extrabold text-slate-900">
+                    {s.name}
+                  </h3>
+
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {s.department && (
+                      <Badge tone="purple">{s.department}</Badge>
+                    )}
+                    {s.type && <Badge tone="slate">{s.type}</Badge>}
+                  </div>
+
+                  <div className="mt-4 flex items-center justify-between pt-2 border-t border-slate-50">
+                    <p className="flex items-center gap-1.5 text-xs text-slate-500">
+                      <LayersIcon className="h-3.5 w-3.5 text-slate-400" />
+                      <span>{s.classIds?.length ?? 0} classes assigned</span>
+                    </p>
+                    <span className="inline-flex items-center gap-1 text-xs font-semibold text-indigo-700">
+                      View allocations
+                      <ArrowRightIcon className="h-3 w-3" />
+                    </span>
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </>

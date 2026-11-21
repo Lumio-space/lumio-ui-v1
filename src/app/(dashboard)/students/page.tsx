@@ -4,7 +4,7 @@
 
 import type { Metadata } from 'next';
 import { RoleGuard } from '@/components/auth/RoleGuard';
-import { StudentsView } from '@/features/invitations/components/StudentsView';
+import { StudentsView } from '@/features/students';
 
 export const metadata: Metadata = { title: 'Students' };
 

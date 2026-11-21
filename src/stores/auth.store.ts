@@ -15,6 +15,7 @@ export interface AuthUser {
   role?:     string
   schoolId?: string
   classId?:  string
+  children?: any[]
 }
 
 interface AuthState {

@@ -124,7 +124,7 @@ describe('DashboardView role-based routing and membership states', () => {
     renderWithProviders(<DashboardView />);
 
     expect(screen.getByText(/parent workspace — greenfield college/i)).toBeInTheDocument();
-    expect(screen.getByText('Parent portal active')).toBeInTheDocument();
+    expect(screen.getByText(/welcome back, jane/i)).toBeInTheDocument();
     expect(screen.queryByText(/administrator workspace/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/teacher workspace/i)).not.toBeInTheDocument();
   });

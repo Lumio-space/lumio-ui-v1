@@ -173,7 +173,9 @@ export function Topbar({ onMenuClickAction }: { onMenuClickAction: () => void })
             {displayEmail && <p className="text-xs text-slate-500">{displayEmail}</p>}
           </div>
           <DropdownDivider />
-          <DropdownItem icon={<UserIcon className="h-4 w-4" />}>My profile</DropdownItem>
+          <DropdownItem icon={<UserIcon className="h-4 w-4" />} onClick={() => router.push('/settings')}>
+            My profile
+          </DropdownItem>
           <DropdownItem icon={<SettingsIcon className="h-4 w-4" />} onClick={() => router.push('/settings')}>
             Settings
           </DropdownItem>

@@ -4,7 +4,7 @@
 
 import type { Metadata } from 'next';
 import { RoleGuard } from '@/components/auth/RoleGuard';
-import { ParentsView } from '@/features/invitations/components/ParentsView';
+import { ParentsView } from '@/features/parents';
 
 export const metadata: Metadata = { title: 'Parents' };
 
