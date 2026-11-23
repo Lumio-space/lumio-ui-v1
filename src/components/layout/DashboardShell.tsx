@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, type ReactNode } from 'react';
-import { AnimatePresence } from 'framer-motion';
 import { Sidebar } from './Sidebar';
 import { Topbar } from './Topbar';
 import { BottomNav } from './BottomNav';
@@ -23,13 +22,11 @@ export function DashboardShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="min-h-screen bg-canvas">
-      <AnimatePresence>
-        <Sidebar
-          key="sidebar"
-          mobileOpen={sidebarOpen}
-          onClose={() => setSidebarOpen(false)}
-        />
-      </AnimatePresence>
+      <Sidebar
+        key="sidebar"
+        mobileOpen={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+      />
 
       <div className="lg:pl-64">
         <Topbar onMenuClickAction ={() => setSidebarOpen(true)} />

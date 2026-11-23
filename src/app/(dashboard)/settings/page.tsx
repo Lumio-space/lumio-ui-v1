@@ -10,7 +10,7 @@ export const metadata: Metadata = { title: 'Settings' };
 
 export default function SettingsPage() {
   return (
-    <RoleGuard allowedRoles={['admin']}>
+    <RoleGuard allowedRoles={['admin', 'teacher', 'parent', 'student']}>
       <SettingsView />
     </RoleGuard>
   );

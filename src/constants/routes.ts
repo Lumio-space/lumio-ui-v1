@@ -20,6 +20,8 @@ export const ROUTES = {
   STUDENTS:     '/students',
   TEACHERS:     '/teachers',
   CLASSES:      '/classes',
+  MY_CLASSES:   '/my-classes',
+  MY_SUBJECTS:  '/my-subjects',
   ATTENDANCE:   '/attendance',
   RESULTS:      '/results',
   TIMETABLE:    '/timetable',

@@ -12,7 +12,7 @@ export function BottomNav() {
   const items    = BOTTOM_NAV_ITEMS.filter((i) => i.roles.includes(role));
 
   const isActive = (href: string) =>
-    pathname === href || pathname.startsWith(href + '/');
+    pathname === href || (href !== '/dashboard' && pathname.startsWith(href + '/'));
 
   return (
     <nav

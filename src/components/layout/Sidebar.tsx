@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence, LayoutGroup } from 'framer-motion';
 import { XIcon, SparklesIcon } from 'lucide-react';
 import { Logo } from '@/components/Logo';
 import { NAV_ITEMS } from '@/config/navigation';
@@ -35,23 +35,25 @@ export function Sidebar({ mobileOpen, onClose }: SidebarProps) {
   const items      = NAV_ITEMS.filter((i) => i.roles.includes(role));
 
   const isActive = (href: string) =>
-    pathname === href || pathname.startsWith(href + '/');
+    pathname === href || (href !== '/dashboard' && pathname.startsWith(href + '/'));
 
   const displayName = schoolName ?? 'Your School';
   const initials    = getInitials(schoolName);
 
-  const content = (
+  const renderContent = (isMobile: boolean) => (
     <div className="flex h-full flex-col bg-indigo-900">
       {/* App logo header — always the Lumio product logo */}
       <div className="flex items-center justify-between px-5 pb-5 pt-6">
         <Logo variant="light" />
-        <button
-          onClick={onClose}
-          className="rounded-lg p-1.5 text-indigo-200 hover:bg-indigo-800 lg:hidden"
-          aria-label="Close navigation"
-        >
-          <XIcon className="h-5 w-5" />
-        </button>
+        {isMobile && (
+          <button
+            onClick={onClose}
+            className="rounded-lg p-1.5 text-indigo-200 hover:bg-indigo-800 lg:hidden"
+            aria-label="Close navigation"
+          >
+            <XIcon className="h-5 w-5" />
+          </button>
+        )}
       </div>
 
       {/* School chip — shows uploaded logo or initials, never Lumio logo */}
@@ -77,34 +79,36 @@ export function Sidebar({ mobileOpen, onClose }: SidebarProps) {
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 space-y-0.5 overflow-y-auto px-3 pb-4" aria-label="Main navigation">
-        {items.map((item) => {
-          const active = isActive(item.href);
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              onClick={onClose}
-              className={cn(
-                'group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors',
-                active
-                  ? 'text-white'
-                  : 'text-indigo-200 hover:bg-indigo-800/60 hover:text-white'
-              )}
-            >
-              {active && (
-                <motion.span
-                  layoutId="nav-active"
-                  className="absolute inset-0 rounded-xl bg-purple-500 shadow-soft"
-                  transition={{ type: 'spring', stiffness: 400, damping: 32 }}
-                />
-              )}
-              <item.icon className="relative h-5 w-5 shrink-0" />
-              <span className="relative">{item.label}</span>
-            </Link>
-          );
-        })}
-      </nav>
+      <LayoutGroup id={isMobile ? 'sidebar-mobile' : 'sidebar-desktop'}>
+        <nav className="flex-1 space-y-0.5 overflow-y-auto px-3 pb-4" aria-label="Main navigation">
+          {items.map((item) => {
+            const active = isActive(item.href);
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                onClick={isMobile ? onClose : undefined}
+                className={cn(
+                  'group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors',
+                  active
+                    ? 'text-white'
+                    : 'text-indigo-200 hover:bg-indigo-800/60 hover:text-white'
+                )}
+              >
+                {active && (
+                  <motion.span
+                    layoutId={isMobile ? 'nav-active-mobile' : 'nav-active-desktop'}
+                    className="pointer-events-none absolute inset-0 rounded-xl bg-purple-500 shadow-soft"
+                    transition={{ type: 'spring', stiffness: 400, damping: 32 }}
+                  />
+                )}
+                <item.icon className="relative h-5 w-5 shrink-0" />
+                <span className="relative">{item.label}</span>
+              </Link>
+            );
+          })}
+        </nav>
+      </LayoutGroup>
 
       {/* Upsell */}
       <div className="m-3 rounded-2xl bg-indigo-800/70 p-4 ring-1 ring-inset ring-indigo-700/50">
@@ -126,30 +130,32 @@ export function Sidebar({ mobileOpen, onClose }: SidebarProps) {
     <>
       {/* Desktop */}
       <aside className="hidden lg:block lg:w-64 lg:shrink-0">
-        <div className="fixed inset-y-0 left-0 w-64">{content}</div>
+        <div className="fixed inset-y-0 left-0 w-64">{renderContent(false)}</div>
       </aside>
 
       {/* Mobile drawer */}
-      {mobileOpen && (
-        <div className="fixed inset-0 z-50 lg:hidden">
-          <motion.div
-            className="absolute inset-0 bg-slate-900/50"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={onClose}
-          />
-          <motion.div
-            initial={{ x: -288 }}
-            animate={{ x: 0 }}
-            exit={{ x: -288 }}
-            transition={{ type: 'spring', stiffness: 320, damping: 32 }}
-            className="absolute inset-y-0 left-0 w-72"
-          >
-            {content}
-          </motion.div>
-        </div>
-      )}
+      <AnimatePresence>
+        {mobileOpen && (
+          <div className="fixed inset-0 z-50 lg:hidden">
+            <motion.div
+              className="absolute inset-0 bg-slate-900/50"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={onClose}
+            />
+            <motion.div
+              initial={{ x: -288 }}
+              animate={{ x: 0 }}
+              exit={{ x: -288 }}
+              transition={{ type: 'spring', stiffness: 320, damping: 32 }}
+              className="absolute inset-y-0 left-0 w-72"
+            >
+              {renderContent(true)}
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </>
   );
 }
