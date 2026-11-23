@@ -105,7 +105,7 @@ export default function AttendancePage() {
   } = useClassAttendance(role === 'parent' ? '' : selectedClassId, selectedDate);
 
   const saveMutation = useSaveAttendance();
-  const updateMutation = typeof useUpdateAttendance === 'function' ? useUpdateAttendance() : saveMutation;
+  const updateMutation = useUpdateAttendance();
 
   // Local live summary state
   const [liveSummary, setLiveSummary] = useState<ClassAttendanceSummary>({

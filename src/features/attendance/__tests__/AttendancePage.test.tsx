@@ -25,6 +25,10 @@ vi.mock('@/features/attendance/hooks/useAttendance', () => ({
     mutateAsync: mockSaveMutateAsync,
     isPending: false,
   }),
+  useUpdateAttendance: () => ({
+    mutateAsync: mockSaveMutateAsync,
+    isPending: false,
+  }),
 }));
 
 // Mock Recharts ResponsiveContainer to avoid SVG measurement errors in jsdom
