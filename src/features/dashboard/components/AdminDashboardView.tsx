@@ -2,6 +2,7 @@
 
 import React, { useMemo } from 'react';
 import Link from 'next/link';
+import { format } from 'date-fns';
 import {
   UsersIcon,
   BookOpenIcon,
@@ -11,6 +12,7 @@ import {
   ArrowRightIcon,
   TrendingUpIcon,
   SchoolIcon,
+  AlertCircleIcon,
 } from 'lucide-react';
 import { StatCard } from '@/components/shared/StatCard';
 import { Button } from '@/components/ui/button';
@@ -30,13 +32,58 @@ import { useClasses } from '@/features/classes/hooks';
 import { useSubjects } from '@/features/subjects/hooks';
 import { useStudents } from '@/features/students/hooks';
 import { useParents } from '@/features/parents/hooks';
+import {
+  useAdminDashboardOverview,
+  useAdminAttendanceOverview,
+  useAdminEnrollmentByGrade,
+} from '../hooks/useAdminDashboard';
 import type { ClassRecord } from '@/features/classes/types';
 import type { TeacherRecord } from '@/features/teachers/types';
+
+function mapGradeToLevel(grade: string): 'nursery' | 'primary' | 'junior_secondary' | 'senior_secondary' {
+  const g = grade.toLowerCase();
+  if (g.startsWith('nursery') || g.includes('kindergarten')) return 'nursery';
+  if (g.startsWith('primary')) return 'primary';
+  if (g.startsWith('jss')) return 'junior_secondary';
+  if (g.startsWith('sss') || g.startsWith('ss')) return 'senior_secondary';
+  return 'primary';
+}
 
 export function AdminDashboardView() {
   const user = useAuthStore((s) => s.user);
   const schoolName = useSchoolStore((s) => s.schoolName) || 'Your School';
   const firstName = user?.name ? user.name.split(' ')[0] : 'Administrator';
+
+  // Compute 6-month date range for attendance trend overview
+  const { fromDate, toDate } = useMemo(() => {
+    const end = new Date();
+    const start = new Date();
+    start.setMonth(start.getMonth() - 5);
+    start.setDate(1);
+    return {
+      fromDate: format(start, 'yyyy-MM-dd'),
+      toDate: format(end, 'yyyy-MM-dd'),
+    };
+  }, []);
+
+  // Live Backend Dashboard API Hooks
+  const {
+    data: overview,
+    isLoading: overviewLoading,
+    isError: overviewError,
+  } = useAdminDashboardOverview();
+
+  const {
+    data: rawAttendanceTrend = [],
+    isLoading: attendanceLoading,
+    isError: attendanceError,
+  } = useAdminAttendanceOverview(fromDate, toDate);
+
+  const {
+    data: rawEnrollment = [],
+    isLoading: enrollmentLoading,
+    isError: enrollmentError,
+  } = useAdminEnrollmentByGrade();
 
   const { data: teachers = [] } = useTeachers();
   const { data: rawClasses = [] } = useClasses();
@@ -53,20 +100,44 @@ export function AdminDashboardView() {
     return studentsResponse?.data || [];
   }, [studentsResponse]);
 
-  const totalStudents = studentsResponse?.total ?? studentsList.length;
-
-  const avgAttendance = useMemo(() => {
-    if (studentsList.length === 0) return 93;
-    const sum = studentsList.reduce((acc, s) => acc + s.attendance, 0);
-    return Math.round(sum / studentsList.length);
-  }, [studentsList]);
+  const totalStudentsFallback = studentsResponse?.total ?? studentsList.length;
 
   const activeTeachers = teachers.filter(
-    (t: TeacherRecord) => t.status === 'Active'
+    (t: TeacherRecord) => t.status?.toLowerCase() === 'active'
   );
   const recentClasses = classes.slice(0, 5);
 
+  const teacherMap = useMemo(() => {
+    const map = new Map<string, string>();
+    teachers.forEach((t: TeacherRecord) => {
+      const name = t.fullName || t.name;
+      if (name) {
+        if (t.userId) map.set(t.userId, name);
+        if (t.id) map.set(t.id, name);
+      }
+    });
+    return map;
+  }, [teachers]);
+
+  const classFormTeacherMap = useMemo(() => {
+    const map = new Map<string, string>();
+    teachers.forEach((t: TeacherRecord) => {
+      const name = t.fullName || t.name;
+      if (name && Array.isArray(t.classes)) {
+        t.classes.forEach((c: any) => {
+          if (typeof c === 'object' && c !== null && c.id && Boolean(c.isFormTeacher)) {
+            map.set(c.id, name);
+          }
+        });
+      }
+    });
+    return map;
+  }, [teachers]);
+
+  // Real Enrollment by Grade Level distribution (no mock/fake fallbacks)
   const enrollmentData = useMemo(() => {
+    if (!rawEnrollment || rawEnrollment.length === 0) return [];
+
     const levelCounts: Record<string, number> = {
       nursery: 0,
       primary: 0,
@@ -74,9 +145,9 @@ export function AdminDashboardView() {
       senior_secondary: 0,
     };
 
-    classes.forEach((c) => {
-      const lvl = c.level?.toLowerCase() || 'primary';
-      levelCounts[lvl] = (levelCounts[lvl] || 0) + (c.students || 1);
+    rawEnrollment.forEach((item) => {
+      const lvl = mapGradeToLevel(item.gradeLevel);
+      levelCounts[lvl] = (levelCounts[lvl] || 0) + (Number(item.count) || 0);
     });
 
     const entries = [
@@ -94,30 +165,30 @@ export function AdminDashboardView() {
       },
     ];
 
-    const hasData = entries.some((e) => e.value > 0);
-    if (!hasData) {
-      return [
-        { name: 'Nursery', value: 25, color: '#10B981' },
-        { name: 'Primary', value: 40, color: '#6366F1' },
-        { name: 'Junior Sec.', value: 20, color: '#F59E0B' },
-        { name: 'Senior Sec.', value: 15, color: '#8B5CF6' },
-      ];
-    }
-
     return entries.filter((e) => e.value > 0);
-  }, [classes]);
+  }, [rawEnrollment]);
 
-  const attendanceTrend = useMemo(
-    () => [
-      { month: 'Jan', present: 94 },
-      { month: 'Feb', present: 91 },
-      { month: 'Mar', present: 95 },
-      { month: 'Apr', present: 88 },
-      { month: 'May', present: 92 },
-      { month: 'Jun', present: avgAttendance },
-    ],
-    [avgAttendance]
-  );
+  // Real Monthly Attendance Trend (no mock/fake fallbacks)
+  const attendanceTrend = useMemo(() => {
+    if (!rawAttendanceTrend || rawAttendanceTrend.length === 0) return [];
+
+    return rawAttendanceTrend.map((item) => {
+      let label = item.month;
+      try {
+        const [y, m] = item.month.split('-');
+        if (y && m) {
+          const d = new Date(Number(y), Number(m) - 1, 1);
+          label = format(d, 'MMM');
+        }
+      } catch {
+        label = item.month;
+      }
+      return {
+        month: label,
+        present: item.presentRate,
+      };
+    });
+  }, [rawAttendanceTrend]);
 
   return (
     <div className="space-y-6">
@@ -154,25 +225,25 @@ export function AdminDashboardView() {
         </div>
       </div>
 
-      {/* KPI Stat Cards matching lumio-react & live metrics */}
+      {/* KPI Stat Cards matching live metrics */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         <StatCard
           label="Total Students"
-          value={totalStudents}
+          value={overviewLoading ? '...' : (overview?.totalStudents ?? totalStudentsFallback)}
           icon={<GraduationCapIcon className="h-5 w-5" />}
           tone="indigo"
           delay={0}
         />
         <StatCard
           label="Total Teachers"
-          value={teachers.length}
+          value={overviewLoading ? '...' : (overview?.totalTeachers ?? teachers.length)}
           icon={<UsersIcon className="h-5 w-5" />}
           tone="purple"
           delay={0.05}
         />
         <StatCard
           label="Active Classes"
-          value={classes.length}
+          value={overviewLoading ? '...' : (overview?.totalClasses ?? classes.length)}
           icon={<BookOpenIcon className="h-5 w-5" />}
           tone="green"
           delay={0.1}
@@ -186,14 +257,14 @@ export function AdminDashboardView() {
         />
         <StatCard
           label="Avg. Attendance"
-          value={`${avgAttendance}%`}
+          value={overviewLoading ? '...' : `${overview?.averageAttendance ?? 0}%`}
           icon={<TrendingUpIcon className="h-5 w-5" />}
           tone="purple"
           delay={0.2}
         />
       </div>
 
-      {/* Charts Row matching lumio-react */}
+      {/* Charts Row matching live backend data */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <Card className="lg:col-span-2 border-slate-100 bg-white shadow-card">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -208,7 +279,25 @@ export function AdminDashboardView() {
             </Badge>
           </CardHeader>
           <CardContent>
-            <AttendanceArea data={attendanceTrend} />
+            {attendanceLoading ? (
+              <div className="flex h-[260px] items-center justify-center text-sm text-slate-400">
+                Loading attendance trend…
+              </div>
+            ) : attendanceError ? (
+              <div className="flex h-[260px] items-center justify-center text-sm text-red-500">
+                Failed to load attendance trends.
+              </div>
+            ) : attendanceTrend.length === 0 ? (
+              <div className="flex h-[260px] flex-col items-center justify-center text-center p-6 text-slate-400">
+                <TrendingUpIcon className="h-8 w-8 text-slate-300 mb-2" />
+                <p className="text-sm font-medium text-slate-600">No Attendance Records Yet</p>
+                <p className="text-xs text-slate-400 mt-1 max-w-xs">
+                  Monthly attendance rates will display here as class registers are marked.
+                </p>
+              </div>
+            ) : (
+              <AttendanceArea data={attendanceTrend} />
+            )}
           </CardContent>
         </Card>
 
@@ -220,7 +309,25 @@ export function AdminDashboardView() {
             </div>
           </CardHeader>
           <CardContent>
-            <EnrollmentDonut data={enrollmentData} />
+            {enrollmentLoading ? (
+              <div className="flex h-44 items-center justify-center text-sm text-slate-400">
+                Loading enrollment distribution…
+              </div>
+            ) : enrollmentError ? (
+              <div className="flex h-44 items-center justify-center text-sm text-red-500">
+                Failed to load enrollment distribution.
+              </div>
+            ) : enrollmentData.length === 0 ? (
+              <div className="flex h-44 flex-col items-center justify-center text-center p-4 text-slate-400">
+                <GraduationCapIcon className="h-8 w-8 text-slate-300 mb-2" />
+                <p className="text-sm font-medium text-slate-600">No Enrollment Data</p>
+                <p className="text-xs text-slate-400 mt-1 max-w-xs">
+                  Student enrollment distribution will appear once students are active in classes.
+                </p>
+              </div>
+            ) : (
+              <EnrollmentDonut data={enrollmentData} />
+            )}
           </CardContent>
         </Card>
       </div>
@@ -331,26 +438,38 @@ export function AdminDashboardView() {
               </div>
             ) : (
               <div className="space-y-3">
-                {recentClasses.map((c: ClassRecord) => (
-                  <div
-                    key={c.id}
-                    className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50/50 p-3"
-                  >
-                    <div>
-                      <p className="text-sm font-semibold text-slate-800">
-                        {c.grade} {c.section}
-                      </p>
-                      <p className="text-xs text-slate-400">
-                        {c.level}
-                        {c.department && c.department !== 'Nill' && ` · ${c.department}`}
-                        {c.room && ` · Room ${c.room}`}
-                      </p>
+                {recentClasses.map((c: ClassRecord) => {
+                  const formTeacherName =
+                    c.formTeacherName ||
+                    (c.formTeacher
+                      ? teacherMap.get(c.formTeacher) ||
+                        (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(c.formTeacher)
+                          ? c.formTeacher
+                          : undefined)
+                      : undefined) ||
+                    classFormTeacherMap.get(c.id);
+
+                  return (
+                    <div
+                      key={c.id}
+                      className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50/50 p-3"
+                    >
+                      <div>
+                        <p className="text-sm font-semibold text-slate-800">
+                          {c.grade} {c.section}
+                        </p>
+                        <p className="text-xs text-slate-400">
+                          {c.level}
+                          {c.department && c.department !== 'Nill' && ` · ${c.department}`}
+                          {c.room && ` · Room ${c.room}`}
+                        </p>
+                      </div>
+                      <Badge tone={formTeacherName ? 'indigo' : 'slate'}>
+                        {formTeacherName ? `Form: ${formTeacherName}` : 'No form teacher'}
+                      </Badge>
                     </div>
-                    <Badge tone={c.formTeacher ? 'indigo' : 'slate'}>
-                      {c.formTeacher ? `Form: ${c.formTeacher}` : 'No form teacher'}
-                    </Badge>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </CardContent>

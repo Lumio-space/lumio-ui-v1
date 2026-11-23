@@ -22,6 +22,10 @@ import { Progress } from '@/components/shared/Progress';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import {
+  GRADE_LEVEL_LABELS,
+  composeClassName,
+} from '@/features/classes/constants';
+import {
   assignmentForTeacher,
   assignmentLabel,
   inviteStatusTone,
@@ -30,7 +34,7 @@ import type { TeacherRecord, TeacherInvitation, TeacherClassAssignment } from '.
 
 interface TeacherDetailModalProps {
   teacher: TeacherRecord | null;
-  invitations: TeacherInvitation[];
+  invitations?: TeacherInvitation[];
   onClose: () => void;
   onToggleStatus?: (teacher: TeacherRecord) => void;
   onAssignFormTeacher?: (teacher: TeacherRecord) => void;
@@ -48,7 +52,7 @@ export function TeacherDetailModal({
   if (!teacher) return null;
 
   const teacherName = teacher.fullName || teacher.name || 'Teacher';
-  const assignment = assignmentForTeacher(invitations, teacher);
+  const assignment = assignmentForTeacher(invitations || [], teacher);
   const subjects = teacher.subjects || [];
   const rating = typeof teacher.rating === 'number' ? teacher.rating : null;
   const attendance = typeof teacher.attendance === 'number' ? teacher.attendance : null;
@@ -182,7 +186,11 @@ export function TeacherDetailModal({
               {teacher.classes.map((c, idx) => {
                 const label = typeof c === 'string'
                   ? c
-                  : `${c.grade || ''} ${c.section || ''} ${c.department && c.department !== 'Nill' ? `(${c.department})` : ''}`.trim();
+                  : composeClassName(
+                      c.grade ? (GRADE_LEVEL_LABELS[c.grade] ?? c.grade) : '',
+                      c.department && c.department !== 'Nill' ? c.department : undefined,
+                      c.section
+                    );
                 const isFormTeacher = typeof c !== 'string' && c.isFormTeacher;
                 return (
                   <Badge key={typeof c === 'string' ? c : c.id || idx} tone={isFormTeacher ? 'indigo' : 'slate'}>

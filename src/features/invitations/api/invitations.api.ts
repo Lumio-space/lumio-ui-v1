@@ -19,6 +19,20 @@ import type {
   DeclineInvitationPayload,
   DeclineInvitationResponse,
 } from '../types';
+import type { PendingInvitation } from '@/features/auth/types';
+
+/**
+ * Fetches pending invitations for the currently authenticated user via GET /invites/pending
+ * Protected endpoint.
+ */
+export async function fetchPendingInvitations(): Promise<PendingInvitation[]> {
+  try {
+    const response = await apiClient.get<PendingInvitation[]>('/invites/pending');
+    return response.data;
+  } catch {
+    return [];
+  }
+}
 
 /**
  * Invites a parent via POST /invites/parents

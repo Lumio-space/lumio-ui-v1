@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Lumio Backend Audit Report</title>
+<style>
+  @page {
+    size: A4;
+    margin: 20mm 15mm 20mm 15mm;
+  }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    line-height: 1.55;
+    color: #1e293b;
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 30px 20px;
+    font-size: 13.5px;
+  }
+  h1 {
+    font-size: 24px;
+    color: #0f172a;
+    border-bottom: 2px solid #2563eb;
+    padding-bottom: 8px;
+    margin-top: 10px;
+    margin-bottom: 12px;
+  }
+  h2 {
+    font-size: 17px;
+    color: #1e293b;
+    border-bottom: 1px solid #cbd5e1;
+    padding-bottom: 6px;
+    margin-top: 24px;
+    margin-bottom: 10px;
+  }
+  h3 {
+    font-size: 14.5px;
+    color: #0f172a;
+    margin-top: 16px;
+    margin-bottom: 8px;
+  }
+  p {
+    margin: 6px 0;
+  }
+  ul {
+    margin: 6px 0 10px 20px;
+    padding: 0;
+  }
+  li {
+    margin-bottom: 4px;
+  }
+  code {
+    background: #f1f5f9;
+    padding: 2px 5px;
+    border-radius: 4px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 12px;
+    color: #094c96;
+    border: 1px solid #e2e8f0;
+  }
+  pre {
+    background: #0f172a;
+    color: #f8fafc;
+    padding: 12px 14px;
+    border-radius: 6px;
+    overflow-x: auto;
+    font-size: 12px;
+    margin: 10px 0;
+  }
+  pre code {
+    background: none;
+    color: inherit;
+    padding: 0;
+    border: none;
+    font-size: 12px;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 14px 0;
+    font-size: 12.5px;
+  }
+  th, td {
+    border: 1px solid #cbd5e1;
+    padding: 8px 10px;
+    text-align: left;
+    vertical-align: top;
+  }
+  th {
+    background: #f8fafc;
+    font-weight: 600;
+    color: #0f172a;
+  }
+  hr {
+    border: 0;
+    border-top: 1px solid #e2e8f0;
+    margin: 20px 0;
+  }
+  @media print {
+    body { padding: 0; font-size: 11pt; line-height: 1.45; }
+    h1, h2, h3 { page-break-after: avoid; }
+    pre, table { page-break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+<h1>Lumio Backend Audit Report: Identified Issues &amp; Required Fixes</h1>
+<p><strong>Codebase Audited:</strong> <code>lumio-api-v1-main</code></p>
+<p><strong>Framework / Stack:</strong> NestJS 11, Drizzle ORM, Neon PostgreSQL, Redis, class-validator</p>
+<p><strong>Date:</strong> November 2026</p>
+<p><strong>Auditor:</strong> Technical Audit Team</p>
+<hr/>
+<h2>Executive Summary</h2>
+<p>This document provides a comprehensive report of all backend defects, missing business logic, cache invalidation bugs, and API contract discrepancies discovered inside the <strong><code>lumio-api-v1-main</code></strong> repository.</p>
+<p>These issues directly cause the reported dashboard problems:</p>
+<p>1. <strong>Form teacher assignments not persisting or reflecting</strong> across the system.</p>
+<p>2. <strong>Subject assignment API returning 404</strong> (<code>Cannot POST /v1/teachers/assign-subjects</code>).</p>
+<p>3. <strong>Inability to assign subjects to multiple classes</strong> in a single operation.</p>
+<p>4. <strong>Attendance permissions clarification</strong>: attendance marking is strictly restricted to assigned Form Teachers by business policy; Admins hold viewing access for records and KPI metrics.</p>
+<p>5. <strong>Class updates failing</strong> due to controller parameter casing bugs and missing DTO optionality.</p>
+<p>6. <strong>Soft-deleted classes and subjects</strong> continuing to leak into list endpoints.</p>
+<p>Below are the detailed findings, exact file locations, code snippets, and required remediation steps for each issue.</p>
+<hr/>
+<h2>1. High-Priority Issues Affecting Dashboard Features</h2>
+<h3>1.1 Form Teacher Assignment Not Reflecting / Stale Reads</h3>
+<ul>
+<li><strong>Affected Files:</strong></li>
+<li><code>src/modules/teachers/teachers.service.ts</code> (lines 29–45)</li>
+<li><code>src/modules/classes/classes.service.ts</code> (lines 130–170)</li>
+<li><strong>Root Cause:</strong></li>
+<li>1. <code>ClassesService.findAll</code> caches paginated class lists in Redis for <strong>3,600 seconds (1 hour)</strong> under the key <code>cacheKeys.classesList(schoolId, page, limit)</code>.</li>
+<li>2. In <code>TeachersService.setFormTeacher</code>, the PostgreSQL database is updated (<code>classes.formTeacher = teacherId</code>), but <code>CacheService</code> is <strong>neither injected nor called</strong>.</li>
+<li>3. When an admin assigns a form teacher and the frontend refetches <code>GET /v1/classes</code>, NestJS serves the stale Redis cache where <code>formTeacher</code> and <code>formTeacherName</code> are still <code>null</code>.</li>
+<li><strong>Required Fix:</strong></li>
+<li>Inject <code>CacheService</code> into <code>TeachersService</code>.</li>
+<li>Invalidate class caches on any form teacher or teacher status update:</li>
+<li><code></code>`typescript</li>
+<li>await this.cacheService.invalidatePattern(cacheKeys.classesAll(schoolId));</li>
+<li>await this.cacheService.invalidate(cacheKeys.dashboardOverview(schoolId));</li>
+<li><code></code>`</li>
+</ul>
+<hr/>
+<h3>1.2 Teacher Invitations Discard <code>classId</code> &amp; Omit Assignment on Acceptance</h3>
+<ul>
+<li><strong>Affected Files:</strong></li>
+<li><code>src/modules/invitations/invitations.controller.ts</code> (lines 42–50)</li>
+<li><code>src/modules/invitations/invitation.service.ts</code> (lines 243, 335)</li>
+<li><strong>Root Cause:</strong></li>
+<li>1. In <code>invitations.controller.ts:46</code>, <code>inviteTeacher</code> accepts <code>dto: InviteTeacherDto</code> (which contains <code>classId</code> and <code>assignmentType</code>), but line 46 explicitly passes <code>undefined</code> instead of <code>dto.classId</code> to <code>createInvitation</code>:</li>
+<li><code></code>`typescript</li>
+<li>// Current defective code in invitations.controller.ts:</li>
+<li>return this.invitationService.createInvitation(</li>
+<li>schoolId,</li>
+<li>dto.email,</li>
+<li>Role.TEACHER,</li>
+<li>undefined, // &lt;-- BUG: Discards dto.classId!</li>
+<li>undefined,</li>
+<li>userId,</li>
+<li>dto.assignmentType,</li>
+<li>);</li>
+<li><code></code>`</li>
+<li>2. In <code>invitation.service.ts</code>, when a teacher accepts an invitation (<code>acceptNewUserInvitation</code> / <code>acceptExistingUserInvitation</code>), the service executes <code>applyStudentAssignment</code> and <code>applyParentAssignment</code>, but <strong>has no <code>applyTeacherAssignment</code> logic</strong>.</li>
+<li>3. Consequently, neither <code>classTeachers</code> nor <code>classes.formTeacher</code> are ever written when an invited teacher signs up.</li>
+<li><strong>Required Fix:</strong></li>
+<li>In <code>invitations.controller.ts:46</code>, pass <code>dto.classId</code>.</li>
+<li>In <code>invitation.service.ts</code>, implement <code>applyTeacherAssignment(schoolId, invitation, userId, tx)</code>:</li>
+<li>Insert row into <code>classTeachers</code> (<code>classId</code>, <code>teacherId</code>).</li>
+<li>If <code>assignmentType === 'form_teacher'</code>, update <code>classes.formTeacher = userId</code>.</li>
+<li>Invalidate Redis class caches.</li>
+</ul>
+<hr/>
+<h3>1.3 Subject Assignment: Route Name Mismatch &amp; Single-Class Limitation</h3>
+<ul>
+<li><strong>Affected Files:</strong></li>
+<li><code>src/modules/teachers/teachers.controller.ts</code> (lines 75–87)</li>
+<li><code>src/modules/teachers/dto/subject-teacher-assignment.dto.ts</code> (lines 1–12)</li>
+<li><code>src/modules/teachers/teachers.service.ts</code> (lines 47–73)</li>
+<li><strong>Root Cause:</strong></li>
+<li>1. <strong>Route Name Mismatch (404 Error):</strong> The backend controller registers <code>@Post('/assign-subject-to-teacher')</code>. However, standard frontend callers request <code>POST /v1/teachers/assign-subjects</code>. NestJS returns <code>404 Cannot POST /v1/teachers/assign-subjects</code>.</li>
+<li>2. <strong>Single-Class Restriction:</strong> <code>SubjectTeacherAssignmentDto</code> strictly accepts a single <code>classId: string</code>. Admins cannot assign a subject across multiple arms or cohorts (e.g. JSS 1A, JSS 1B, JSS 1C) in a single request.</li>
+<li>3. <code>TeachersService.assignSubjectToTeacher</code> only accepts a single <code>classId</code>.</li>
+<li><strong>Required Fix:</strong></li>
+<li>Add <code>@Post('/assign-subjects')</code> (or alias route) to <code>TeachersController</code>.</li>
+<li>Update <code>SubjectTeacherAssignmentDto</code> to support an array of class IDs:</li>
+<li><code></code>`typescript</li>
+<li>export class SubjectTeacherAssignmentDto {</li>
+<li>@IsUUID()</li>
+<li>teacherId: string;</li>
+</ul>
+<p>@IsUUID()</p>
+<p>subjectId: string;</p>
+<p>@IsArray()</p>
+<p>@IsUUID('4', { each: true })</p>
+<p>@IsOptional()</p>
+<p>classIds?: string[];</p>
+<p>@IsUUID()</p>
+<p>@IsOptional()</p>
+<p>classId?: string; // Kept for backward compatibility</p>
+<p>}</p>
+<p><code></code>`</p>
+<ul>
+<li>In <code>TeachersService.assignSubjectToTeacher</code>, accept <code>classIds: string[]</code>, validate that each class belongs to the school and offers the subject, and batch insert into <code>teacher_subjects</code> inside a single database transaction.</li>
+</ul>
+<hr/>
+<h3>1.4 Class Updates Broken: Parameter Typo &amp; DTO Validation</h3>
+<ul>
+<li><strong>Affected Files:</strong></li>
+<li><code>src/modules/classes/classes.controller.ts</code> (line 48)</li>
+<li><code>src/modules/classes/dto/create-class.dto.ts</code> (lines 39–60)</li>
+<li><strong>Root Cause:</strong></li>
+<li>1. <strong>Parameter Typo:</strong> In <code>classes.controller.ts:48</code>:</li>
+<li><code></code>`typescript</li>
+<li>@Patch(':classId')</li>
+<li>@Permissions(Permission.MANAGE_CLASS)</li>
+<li>async updateClass(</li>
+<li>@CurrentMembership('schoolid') schoolId: string, // &lt;-- TYPO: lowercase 'schoolid'</li>
+<li>@Param('classId') classId: string,</li>
+<li>@Body() dto: UpdateClassDto,</li>
+<li>)</li>
+<li><code></code>`</li>
+<li>Because the <code>CurrentMembership</code> decorator performs a case-sensitive lookup on <code>request.membership?.[field]</code>, <code>schoolId</code> evaluates to <code>undefined</code>.</li>
+<li>2. <strong>ValidationPipe Failure on Partial Updates:</strong> <code>UpdateClassDto</code> re-declares <code>gradeLevel</code>, <code>gradeSection</code>, <code>schoolLevel</code>, <code>capacity</code>, and <code>room</code> without <code>@IsOptional()</code>. Sending a partial update (e.g. updating capacity or room only) triggers a <code>400 Bad Request</code> validation failure.</li>
+<li><strong>Required Fix:</strong></li>
+<li>Fix casing in <code>classes.controller.ts:48</code> to <code>@CurrentMembership('schoolId')</code>.</li>
+<li>Add <code>@IsOptional()</code> to all fields in <code>UpdateClassDto</code>.</li>
+<li>Invalidate Redis cache <code>cacheKeys.classesAll(schoolId)</code> in <code>ClassesService.update</code> and <code>ClassesService.deleteClass</code>.</li>
+</ul>
+<hr/>
+<h2>2. Additional Defects &amp; Architectural Gaps</h2>
+<h3>2.1 Attendance Permissions: Form-Teacher-Only Marking (Confirmed Business Logic)</h3>
+<ul>
+<li><strong>Referenced Backend Files:</strong></li>
+<li><code>src/security/rbac/permission-map.ts</code> (lines 7–39)</li>
+<li><code>src/modules/attendance/attendance.controller.ts</code> (lines 31–75)</li>
+<li><code>src/modules/attendance/attendance.service.ts</code> (lines 49–53, 116–130, 304–325)</li>
+<li><strong>Referenced Frontend Files:</strong></li>
+<li><code>src/app/(dashboard)/attendance/page.tsx</code></li>
+<li><code>src/features/attendance/components/AttendanceRoster.tsx</code></li>
+<li><code>src/features/attendance/components/AttendanceSummaryCards.tsx</code></li>
+<li><code>src/features/attendance/components/ParentAttendanceView.tsx</code></li>
+<li><code>src/features/attendance/api/attendance.api.ts</code></li>
+<li><code>src/features/attendance/hooks/useAttendance.ts</code></li>
+<li><strong>Policy &amp; Business Logic Clarification:</strong></li>
+<li>In <code>attendance.service.ts:49</code>, <code>markAttendance</code> enforces:</li>
+<li><code></code>`typescript</li>
+<li>if (cls.formTeacher !== userId) {</li>
+<li>throw new ForbiddenException(</li>
+<li>'only this class form teacher can mark attendance for this class',</li>
+<li>);</li>
+<li>}</li>
+<li><code></code>`</li>
+<li><em>Clarification on Architectural Intent:</em> Previous audit drafts questioned this check as a potential bug. However, per confirmed product specifications and business policy, <strong><code>cls.formTeacher !== userId</code> is intended business logic</strong>.</li>
+</ul>
+<p>In the Lumio platform:</p>
+<p>1. <strong>RBAC Permission Architecture:</strong></p>
+<ul>
+<li>In <code>permission-map.ts</code>, <code>Role.SCHOOL_ADMIN</code> is assigned <code>Permission.VIEW_ATTENDANCE</code> but intentionally <strong>omits</strong> <code>Permission.MARK_ATTENDANCE</code>.</li>
+<li><code>Role.TEACHER</code> is granted both <code>Permission.MARK_ATTENDANCE</code> and <code>Permission.VIEW_ATTENDANCE</code>.</li>
+<li>In <code>AttendanceController</code>, both creation (<code>@Post(':classId')</code>) and updates (<code>@Patch(':classId')</code>) are guarded with <code>@Permissions(Permission.MARK_ATTENDANCE)</code>. Retrieval (<code>@Get(':classId')</code>) requires <code>@Permissions(Permission.VIEW_ATTENDANCE)</code>.</li>
+<li>2. <strong>Exclusivity of Attendance Marking:</strong> Only appointed Form Teachers have the pedagogical authority and administrative permission to record or update daily attendance registers for their assigned cohorts.</li>
+<li>3. <strong>Administrator Role (View-Only &amp; Institution Metrics):</strong> School Administrators do not mark student attendance. In <code>AttendanceService.getClassForAccess</code> (lines 316–324), <code>isAdmin === true</code> allows administrators to query and view class attendance registers for any class in the institution, track attendance rosters, and review school-wide KPI metrics and monthly trends.</li>
+<li>4. <strong>Frontend Alignment &amp; UI/UX Experience:</strong></li>
+<li><strong>School Administrators (Read-Only View):</strong></li>
+<li>Displayed with an explicit banner: <em>"Administrator View (Read-Only) — Student attendance marking is reserved for designated Form Teachers. You have full access to view daily registers and KPI metrics."</em></li>
+<li>Action buttons ("Mark all present", "Save register") and segmented status toggle buttons are completely hidden.</li>
+<li>Student rosters render immutable status badges (<code>Present</code>, <code>Late</code>, <code>Absent</code>, <code>Excused</code>, <code>Unmarked</code>) along with a <code>"Read-only view"</code> header badge.</li>
+<li>Institution-wide class selector dropdown is fully enabled, allowing administrators to inspect any class.</li>
+<li>Summary KPI cards (Present, Absent, Late counts, Today's Rate progress ring) and the 6-month monthly trend analytics chart remain fully active and visible.</li>
+<li><strong>Form Teachers (Interactive Marking Active):</strong></li>
+<li>When viewing their assigned cohort (<code>cls.formTeacher === userId</code> or matching teacher credentials), an authorization banner is displayed: <em>"You are the designated Form Teacher for {className}. Register recording and submissions are active."</em></li>
+<li>Interactive status segmented buttons (Present, Late, Absent, Excused) and "Mark all present" are fully active.</li>
+<li>Live summary KPI metrics update instantaneously as marks are toggled.</li>
+<li>"Save register" submits attendance via <code>POST /attendance/:classId</code> on initial marking, and falls back to <code>PATCH /attendance/:classId</code> for subsequent corrections.</li>
+<li><strong>Non-Form Teachers (Read-Only Register):</strong></li>
+<li>When a teacher inspects a cohort they do not lead, an advisory banner is shown: <em>"Read-Only Register — Only the appointed Form Teacher of {className} can record or modify attendance."</em></li>
+<li>If the backend returns <code>403 Forbidden</code>, a non-blocking alert banner and locked roster placeholder are presented while preserving monthly trends and calendar navigation.</li>
+<li><strong>Parents:</strong></li>
+<li>Automatically rendered via <code>ParentAttendanceView</code>, displaying only their linked ward's attendance metrics and calendar history to ensure absolute privacy for peer students.</li>
+<li>5. <strong>Verification &amp; Test Coverage:</strong></li>
+<li><code>AttendancePage.test.tsx</code> (10 tests passing): Confirms Admin read-only enforcement, Form Teacher marking &amp; saving, Non-Form Teacher read-only notice, 403 handling resilience, flexible credential identification (user ID, teacherId, name, fullName, classId, and formTeacherName matching), and Parent view isolation.</li>
+<li><code>AttendanceRoster.test.tsx</code> (3 tests passing): Confirms read-only status badges vs interactive button controls, and case-insensitive status badge normalization.</li>
+<li><code>AttendanceSummaryCards.test.tsx</code> (3 tests passing): Confirms count displays, boundary division-by-zero protection, and proper <code>summary.total</code> enrollment denominator precedence when partial attendance is recorded.</li>
+<li><code>attendance.api.test.ts</code> (3 tests passing): Confirms GET, POST, and PATCH API integrations with defensive data normalization (mapping DB column names and lowercase status enums).</li>
+<li><strong>Remediation Status:</strong> <strong>No backend modification required for <code>cls.formTeacher !== userId</code></strong>. The backend constraint is working as intended, and the frontend is fully hardened and aligned.</li>
+</ul>
+<hr/>
+<h3>2.2 Soft-Deleted Classes and Subjects Leak Into List Endpoints</h3>
+<ul>
+<li><strong>Affected Files:</strong></li>
+<li><code>src/modules/classes/classes.service.ts</code> (lines 154, 160)</li>
+<li><code>src/modules/subjects/subjects.service.ts</code> (lines 151, 157)</li>
+<li><strong>Root Cause:</strong></li>
+<li>Both <code>ClassesService.findAll</code> and <code>SubjectsService.findAll</code> filter by <code>eq(schoolId, schoolId)</code> but completely omit <code>isNull(deletedAt)</code> in both data query and <code>count()</code> queries.</li>
+<li><strong>Impact:</strong> Classes and subjects that were deleted via <code>DELETE</code> continue to appear in listings and dashboard metrics.</li>
+<li><strong>Required Fix:</strong></li>
+<li>Add <code>isNull(classes.deletedAt)</code> and <code>isNull(subjects.deletedAt)</code> to the <code>where</code> clauses of both query and count queries.</li>
+</ul>
+<hr/>
+<h3>2.3 Student Counts Missing from <code>GET /v1/classes</code></h3>
+<ul>
+<li><strong>Affected File:</strong> <code>src/modules/classes/classes.service.ts</code> (lines 138–161)</li>
+<li><strong>Root Cause:</strong></li>
+<li><code>ClassesService.findAll</code> selects only class columns and <code>formTeacherName</code>. It does not aggregate active students from the <code>students</code> table.</li>
+<li><strong>Impact:</strong> Every class card displays <code>0 / {capacity}</code> students because the backend returns no student counts.</li>
+<li><strong>Required Fix:</strong></li>
+<li>Include a subquery or join to return active student count:</li>
+<li><code></code>`typescript</li>
+<li>studentsCount: sql&lt;number&gt;`(</li>
+<li>SELECT count(*)::int FROM students</li>
+<li>WHERE students.class_id = ${classes.id}</li>
+<li>AND students.status = 'active'</li>
+<li>AND students.deleted_at IS NULL</li>
+<li>)`</li>
+<li><code></code>`</li>
+</ul>
+<hr/>
+<h3>2.4 Subject Deletion &amp; Update API Contract Issues</h3>
+<ul>
+<li><strong>Affected Files:</strong></li>
+<li><code>src/modules/subjects/subjects.controller.ts</code> (line 58)</li>
+<li><code>src/modules/subjects/dto/create-subject.dto.ts</code> (lines 31–46)</li>
+<li><strong>Root Cause:</strong></li>
+<li>1. <code>SubjectsController</code> defines <code>@Delete('/')</code> requiring a JSON body <code>{ subjectId: string }</code>. Standard REST clients expect <code>@Delete(':subjectId')</code>.</li>
+<li>2. <code>UpdateSubjectDto</code> declares all fields (<code>status</code>, <code>subjectId</code>, <code>title</code>, <code>code</code>) as mandatory without <code>@IsOptional()</code>. Partial updates fail validation.</li>
+<li><strong>Required Fix:</strong></li>
+<li>Change delete endpoint to <code>@Delete(':subjectId')</code> with <code>@Param('subjectId')</code>.</li>
+<li>Add <code>@IsOptional()</code> to all fields in <code>UpdateSubjectDto</code> and remove required <code>subjectId</code> from the body.</li>
+</ul>
+<hr/>
+<h3>2.5 Subject Metadata Stripped on <code>GET /v1/subjects</code></h3>
+<ul>
+<li><strong>Affected File:</strong> <code>src/modules/subjects/subjects.service.ts</code> (lines 146–162)</li>
+<li><strong>Root Cause:</strong></li>
+<li><code>findAll</code> selects exclusively from the <code>subjects</code> table. It does not join <code>subject_offerings</code> or <code>class_subjects</code>.</li>
+<li><strong>Impact:</strong> The response lacks <code>section</code>, <code>department</code>, <code>type</code>, and assigned <code>classIds</code>.</li>
+<li><strong>Required Fix:</strong></li>
+<li>Join <code>subject_offerings</code> and aggregate assigned class IDs from <code>class_subjects</code> so subject metadata is preserved and returned.</li>
+</ul>
+<hr/>
+<h3>2.6 Missing Endpoints on Backend Controllers</h3>
+<p>1. <strong>Subject Class Assignment:</strong></p>
+<p>Frontend calls <code>POST /v1/subjects/:subjectId/classes</code> to assign classes to a subject. Backend has no such route in <code>SubjectsController</code>.</p>
+<p>2. <strong>Form Teacher Removal:</strong></p>
+<p><code>TeachersService.removeFormTeacher</code> exists in the service at line 275, but is <strong>omitted from <code>TeachersController</code></strong>.</p>
+<p>3. <strong>Teacher Subject Unassignment:</strong></p>
+<p><code>TeachersService.removeAssignment</code> at line 297 is an empty stub and has no controller route.</p>
+<p>4. <strong>Teacher Profile Update:</strong></p>
+<p>No endpoint exists to update a teacher's profile details (full name, phone, etc.) from the dashboard. Only <code>PATCH /teachers/:teacherId/status</code> exists.</p>
+<hr/>
+<h2>3. Summary Checklist for the Backend Engineer</h2>
+<table><thead><tr>
+<th>Area</th>
+<th>File(s)</th>
+<th>Fix Summary</th>
+</tr></thead><tbody>
+<tr>
+<td><strong>Cache Invalidation</strong></td>
+<td><code>teachers.service.ts</code>, <code>classes.service.ts</code></td>
+<td>Invalidate <code>cacheKeys.classesAll(schoolId)</code> on teacher/form-teacher/class updates.</td>
+</tr>
+<tr>
+<td><strong>Invitations</strong></td>
+<td><code>invitations.controller.ts:46</code>, <code>invitation.service.ts</code></td>
+<td>Stop passing <code>undefined</code> for <code>dto.classId</code>. Add <code>applyTeacherAssignment</code> on acceptance.</td>
+</tr>
+<tr>
+<td><strong>Subject Assignment</strong></td>
+<td><code>teachers.controller.ts</code>, <code>subject-teacher-assignment.dto.ts</code></td>
+<td>Add route alias <code>/assign-subjects</code>. Support <code>classIds: string[]</code> batch assignment.</td>
+</tr>
+<tr>
+<td><strong>Class Updates</strong></td>
+<td><code>classes.controller.ts:48</code>, <code>create-class.dto.ts</code></td>
+<td>Change <code>'schoolid'</code> to <code>'schoolId'</code>. Add <code>@IsOptional()</code> to <code>UpdateClassDto</code>.</td>
+</tr>
+<tr>
+<td><strong>Attendance Permissions</strong></td>
+<td><code>attendance.controller.ts</code>, <code>attendance.service.ts:49</code></td>
+<td>Confirmed intended policy: strictly Form-Teacher-only marking (<code>cls.formTeacher === userId</code>). Admins have read-only view.</td>
+</tr>
+<tr>
+<td><strong>Soft-Delete Filtering</strong></td>
+<td><code>classes.service.ts:154</code>, <code>subjects.service.ts:151</code></td>
+<td>Add <code>isNull(deletedAt)</code> to both data queries and count queries.</td>
+</tr>
+<tr>
+<td><strong>Student Counts</strong></td>
+<td><code>classes.service.ts:138</code></td>
+<td>Join/subquery active student count in <code>ClassesService.findAll</code>.</td>
+</tr>
+<tr>
+<td><strong>Subject REST Routes</strong></td>
+<td><code>subjects.controller.ts</code>, <code>create-subject.dto.ts</code></td>
+<td>Change delete to <code>@Delete(':subjectId')</code>. Make <code>UpdateSubjectDto</code> fields optional.</td>
+</tr>
+<tr>
+<td><strong>Expose Missing Endpoints</strong></td>
+<td><code>teachers.controller.ts</code>, <code>subjects.controller.ts</code></td>
+<td>Expose <code>removeFormTeacher</code>, <code>removeAssignment</code>, and <code>POST /subjects/:subjectId/classes</code>.</td>
+</tr>
+</tbody></table>
+<hr/>
+<p><em>Report generated for Lumio Platform Engineering.</em></p>
+</body>
+</html>

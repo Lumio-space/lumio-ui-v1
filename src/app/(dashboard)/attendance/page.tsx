@@ -19,6 +19,7 @@ import {
   ChevronLeftIcon,
   ChevronRightIcon,
   ShieldCheckIcon,
+  EyeIcon,
 } from 'lucide-react';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
@@ -33,6 +34,7 @@ import type { ClassRecord } from '@/features/classes/types';
 import {
   useClassAttendance,
   useSaveAttendance,
+  useUpdateAttendance,
   AttendanceSummaryCards,
   AttendanceRoster,
   ParentAttendanceView,
@@ -67,11 +69,13 @@ export default function AttendancePage() {
     }
     if (!selectedClassId) {
       if (role === 'teacher' && user) {
+        const userFullName = (user as any).fullName || user.name;
         const formClass = classes.find(
           (c) =>
             (user.classId && c.id === user.classId) ||
-            (user.id && c.formTeacher === user.id) ||
-            (user.name && c.formTeacher === user.name)
+            (user.id && (c.formTeacher === user.id || (c as any).formTeacherId === user.id || (c as any).teacher === user.id)) ||
+            (user.name && (c.formTeacher === user.name || c.formTeacherName === user.name || (c as any).teacher === user.name)) ||
+            (userFullName && (c.formTeacher === userFullName || c.formTeacherName === userFullName || (c as any).teacher === userFullName))
         );
         if (formClass) {
           setSelectedClassId(formClass.id);
@@ -101,6 +105,7 @@ export default function AttendancePage() {
   } = useClassAttendance(role === 'parent' ? '' : selectedClassId, selectedDate);
 
   const saveMutation = useSaveAttendance();
+  const updateMutation = typeof useUpdateAttendance === 'function' ? useUpdateAttendance() : saveMutation;
 
   // Local live summary state
   const [liveSummary, setLiveSummary] = useState<ClassAttendanceSummary>({
@@ -118,6 +123,42 @@ export default function AttendancePage() {
   }, [attendanceData?.summary]);
 
   const students = attendanceData?.students || [];
+
+  // Permissions: Only the designated Form Teacher can mark/edit attendance. Admins and non-form staff have view-only access.
+  const isFormTeacher = useMemo(() => {
+    if (role !== 'teacher' || !user || !selectedClass) return false;
+    const userIdLower = user.id ? String(user.id).trim().toLowerCase() : '';
+    const userTeacherIdLower = (user as any).teacherId ? String((user as any).teacherId).trim().toLowerCase() : '';
+    const userName = user.name || (user as any).fullName || '';
+    const userNameLower = userName.trim().toLowerCase();
+
+    const classFormTeacher = selectedClass.formTeacher ? String(selectedClass.formTeacher).trim() : '';
+    const classFormTeacherLower = classFormTeacher.toLowerCase();
+    const classFormTeacherName = selectedClass.formTeacherName ? String(selectedClass.formTeacherName).trim().toLowerCase() : '';
+    const classFormTeacherId = (selectedClass as any).formTeacherId ? String((selectedClass as any).formTeacherId).trim().toLowerCase() : '';
+    const classTeacher = (selectedClass as any).teacher ? String((selectedClass as any).teacher).trim().toLowerCase() : '';
+
+    return Boolean(
+      (user.classId && selectedClass.id === user.classId) ||
+      (userIdLower && (
+        classFormTeacherLower === userIdLower ||
+        classFormTeacherId === userIdLower ||
+        classTeacher === userIdLower
+      )) ||
+      (userTeacherIdLower && (
+        classFormTeacherLower === userTeacherIdLower ||
+        classFormTeacherId === userTeacherIdLower ||
+        classTeacher === userTeacherIdLower
+      )) ||
+      (userNameLower && (
+        classFormTeacherLower === userNameLower ||
+        classFormTeacherName === userNameLower ||
+        classTeacher === userNameLower
+      ))
+    );
+  }, [role, user, selectedClass]);
+
+  const canMarkAttendance = role === 'teacher' && isFormTeacher;
 
   // Check if forbidden (e.g. user is not the form teacher of this class)
   const isForbidden =
@@ -160,18 +201,46 @@ export default function AttendancePage() {
   );
 
   async function handleSaveRoster(marks: Record<string, AttendanceStatus>) {
-    if (!selectedClassId) return;
+    if (!canMarkAttendance || !selectedClassId) return;
 
     const entries = Object.entries(marks).map(([studentId, status]) => ({
       studentId,
       status,
     }));
 
-    await saveMutation.mutateAsync({
-      classId: selectedClassId,
-      date: selectedDate,
-      entries,
-    });
+    // If attendance was already recorded for this class & date, use PATCH endpoint
+    const isAlreadyMarked = students.some((s) => s.status !== null);
+
+    if (isAlreadyMarked && updateMutation) {
+      await updateMutation.mutateAsync({
+        classId: selectedClassId,
+        date: selectedDate,
+        entries,
+      });
+    } else {
+      try {
+        await saveMutation.mutateAsync({
+          classId: selectedClassId,
+          date: selectedDate,
+          entries,
+        });
+      } catch (err: unknown) {
+        const errorMsg =
+          (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||
+          (err instanceof Error ? err.message : '');
+
+        // If backend responds that attendance has already been marked, fallback to PATCH
+        if (errorMsg.toLowerCase().includes('already been marked') && updateMutation) {
+          await updateMutation.mutateAsync({
+            classId: selectedClassId,
+            date: selectedDate,
+            entries,
+          });
+        } else {
+          throw err;
+        }
+      }
+    }
   }
 
   // Parents have dedicated ward attendance view that guarantees privacy of other students
@@ -191,7 +260,13 @@ export default function AttendancePage() {
     <div className="space-y-6">
       <PageHeader
         title="Attendance"
-        description="Mark daily attendance and track student presence."
+        description={
+          role === 'admin'
+            ? 'View class attendance registers and track school-wide student presence.'
+            : canMarkAttendance
+            ? 'Mark daily attendance and track student presence.'
+            : 'Track student attendance and review class presence records.'
+        }
         actions={
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
             {/* Date picker */}
@@ -235,11 +310,31 @@ export default function AttendancePage() {
         }
       />
 
+      {/* Administrator View Banner */}
+      {role === 'admin' && (
+        <div className="flex items-center gap-2 rounded-xl bg-slate-50 border border-slate-200/80 px-4 py-2.5 text-xs text-slate-700">
+          <EyeIcon className="h-4 w-4 text-slate-500 shrink-0" />
+          <span>
+            Administrator View (Read-Only) — Student attendance marking is reserved for designated Form Teachers. You have full access to view daily registers and KPI metrics.
+          </span>
+        </div>
+      )}
+
       {/* Form Teacher Authorized Banner */}
-      {!isForbidden && selectedClass && (selectedClass.id === user?.classId || selectedClass.formTeacher === user?.id || selectedClass.formTeacher === user?.name) && (
+      {!isForbidden && canMarkAttendance && (
         <div className="flex items-center gap-2 rounded-xl bg-gold-50/70 border border-gold-200/80 px-4 py-2.5 text-xs text-gold-900">
           <ShieldCheckIcon className="h-4 w-4 text-gold-600 shrink-0" />
           <span>You are the designated Form Teacher for {classNameDisplay}. Register recording and submissions are active.</span>
+        </div>
+      )}
+
+      {/* Non-Form Teacher Read-Only Notice */}
+      {role === 'teacher' && !isFormTeacher && !isForbidden && selectedClass && (
+        <div className="flex items-center gap-2 rounded-xl bg-amber-50/80 border border-amber-200/80 px-4 py-2.5 text-xs text-amber-900">
+          <LockIcon className="h-4 w-4 text-amber-600 shrink-0" />
+          <span>
+            Read-Only Register — Only the appointed Form Teacher of {classNameDisplay} can record or modify attendance.
+          </span>
         </div>
       )}
 
@@ -301,9 +396,10 @@ export default function AttendancePage() {
               students={students}
               date={selectedDate}
               classNameDisplay={classNameDisplay}
-              onSave={handleSaveRoster}
-              isSaving={saveMutation.isPending}
+              onSave={canMarkAttendance ? handleSaveRoster : undefined}
+              isSaving={canMarkAttendance ? (saveMutation.isPending || Boolean(updateMutation?.isPending)) : false}
               onSummaryChange={setLiveSummary}
+              readOnly={!canMarkAttendance}
             />
           ) : (
             <div className="rounded-2xl border border-dashed border-amber-200 bg-amber-50/50 p-12 text-center">

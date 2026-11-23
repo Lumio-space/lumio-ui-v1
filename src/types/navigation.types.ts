@@ -4,8 +4,10 @@
  * Shared by config/navigation.ts and all sidebar/nav components.
  */
 
-import type { LucideIcon } from 'lucide-react';
+import type * as React from 'react';
 import type { UserRole } from './auth.types';
+
+export type LucideIcon = React.ComponentType<{ className?: string; size?: number | string; [key: string]: any }>;
 
 export interface NavItem {
   label: string;

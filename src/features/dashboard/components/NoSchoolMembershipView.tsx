@@ -1,13 +1,17 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { GraduationCapIcon, ArrowRightIcon, LogOutIcon, KeyRoundIcon } from 'lucide-react';
+import { GraduationCapIcon, ArrowRightIcon, LogOutIcon, KeyRoundIcon, MailIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/shared/Badge';
 import { useAuthStore } from '@/stores/auth.store';
 import { clearAuthCookie } from '@/features/auth/hooks/useAuth';
 import { logoutUser } from '@/features/auth/services/auth.api';
+import { usePendingInvitations } from '@/features/teachers/hooks/useAcceptInvitation';
+import { PendingInvitationModal } from '@/features/invitations';
+import type { PendingInvitation } from '@/features/auth/types';
 
 export function NoSchoolMembershipView() {
   const router = useRouter();
@@ -15,6 +19,16 @@ export function NoSchoolMembershipView() {
   const user = useAuthStore((s) => s.user);
   const clearUser = useAuthStore((s) => s.clearUser);
   const setAuthenticated = useAuthStore((s) => s.setAuthenticated);
+
+  const { data: pendingInvitations = [] } = usePendingInvitations();
+  const [selectedInvite, setSelectedInvite] = useState<PendingInvitation | null>(null);
+
+  // Auto-display modal if there is an unaccepted pending invitation
+  useEffect(() => {
+    if (pendingInvitations.length > 0 && !selectedInvite) {
+      setSelectedInvite(pendingInvitations[0]);
+    }
+  }, [pendingInvitations, selectedInvite]);
 
   function handleTokenSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -59,6 +73,32 @@ export function NoSchoolMembershipView() {
           Your Lumio account is active, but you are not currently attached to any school workspace.
         </p>
 
+        {pendingInvitations.length > 0 && (
+          <div className="mt-6 rounded-2xl border border-indigo-200 bg-indigo-50/70 p-5 text-left">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold uppercase tracking-wider text-indigo-700">
+                Pending Invitation Available
+              </span>
+              <Badge tone="purple">{pendingInvitations[0].role}</Badge>
+            </div>
+            <p className="mt-1.5 text-sm font-semibold text-slate-900">
+              {pendingInvitations[0].schoolName}
+            </p>
+            <p className="mt-0.5 text-xs text-slate-500">
+              You were invited to join this school as a {pendingInvitations[0].role}.
+            </p>
+            <div className="mt-4 flex gap-2">
+              <Button
+                size="sm"
+                onClick={() => setSelectedInvite(pendingInvitations[0])}
+                rightIcon={<ArrowRightIcon className="h-4 w-4" />}
+              >
+                Review & Accept Invitation
+              </Button>
+            </div>
+          </div>
+        )}
+
         <div className="mt-6 rounded-2xl border border-slate-100 bg-slate-50/80 p-5 text-left">
           <h4 className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-700">
             <KeyRoundIcon className="h-4 w-4 text-indigo-600" />
@@ -99,6 +139,22 @@ export function NoSchoolMembershipView() {
           </Button>
         </div>
       </div>
+
+      {selectedInvite && (
+        <PendingInvitationModal
+          open={Boolean(selectedInvite)}
+          onOpenChange={(open) => {
+            if (!open) setSelectedInvite(null);
+          }}
+          invitation={selectedInvite}
+          onAccepted={() => {
+            setSelectedInvite(null);
+          }}
+          onDeclined={() => {
+            setSelectedInvite(null);
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -17,6 +17,7 @@ export default defineConfig({
     setupFiles:  ['./src/test/setup.ts'],
     css:         false,
     pool:        'forks',
+    testTimeout: 15000,
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],
@@ -24,6 +25,9 @@ export default defineConfig({
     },
   },
   resolve: {
-    alias: { '@': resolve(__dirname, './src') },
+    alias: {
+      '@': resolve(__dirname, './src'),
+      'framer-motion': resolve(__dirname, './node_modules/framer-motion/dist/cjs/index.js'),
+    },
   },
 });

@@ -6,12 +6,15 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { MailIcon, LockIcon, ArrowRightIcon, EyeOffIcon, EyeIcon } from 'lucide-react';
 
 import { loginSchema, type LoginFormValues } from '@/features/auth/schemas/login.schema';
 import { useLogin } from '@/features/auth/hooks/useAuth';
+import type { PendingInvitation } from '@/features/auth/types';
+import { PendingInvitationModal } from '@/features/invitations';
 
 import { Button }   from '@/components/ui/button';
 import { Input }    from '@/components/ui/input';
@@ -22,7 +25,23 @@ import {
 } from '@/components/ui/form';
 
 export function LoginForm() {
-  const { mutate: login, isPending, error } = useLogin();
+  const searchParams = useSearchParams();
+  const [pendingInvitation, setPendingInvitation] = useState<PendingInvitation | null>(null);
+
+  const { mutate: login, isPending, error } = useLogin({
+    onPendingInvitation: (invitation) => {
+      const urlToken = searchParams?.get('token');
+      const callbackUrl = searchParams?.get('callbackUrl');
+      let callbackToken = urlToken;
+      if (!callbackToken && callbackUrl && callbackUrl.includes('token=')) {
+        callbackToken = callbackUrl.split('token=')[1]?.split('&')[0];
+      }
+      setPendingInvitation({
+        ...invitation,
+        token: invitation.token || callbackToken || undefined,
+      });
+    },
+  });
   const [ showPassword, setShowPassword ] = useState(false);
 
   const form = useForm<LoginFormValues>({
@@ -188,6 +207,22 @@ export function LoginForm() {
             </Link>
           </p>
         </div>
+
+        {pendingInvitation && (
+          <PendingInvitationModal
+            open={Boolean(pendingInvitation)}
+            onOpenChange={(open) => {
+              if (!open) setPendingInvitation(null);
+            }}
+            invitation={pendingInvitation}
+            onAccepted={() => {
+              setPendingInvitation(null);
+            }}
+            onDeclined={() => {
+              setPendingInvitation(null);
+            }}
+          />
+        )}
       </div>
   );
 }

@@ -44,3 +44,9 @@ export interface SaveAttendancePayload {
   date: string;
   entries: AttendanceEntryItem[];
 }
+
+export interface UpdateAttendancePayload {
+  classId: string;
+  date: string;
+  entries: AttendanceEntryItem[];
+}

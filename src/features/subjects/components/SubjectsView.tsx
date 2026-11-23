@@ -299,7 +299,11 @@ export function SubjectsView() {
     updateSubjectMutation.mutate(
       {
         id: subject.id,
-        payload: { status: nextStatus },
+        payload: {
+          status: nextStatus,
+          name: subject.name,
+          code: subject.code,
+        },
       },
       {
         onSuccess: () => {

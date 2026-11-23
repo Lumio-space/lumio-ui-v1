@@ -603,17 +603,24 @@ export function TeachersView() {
             ) : (
               <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
                 {classes.map((c) => {
-                  const invite = formTeacherForClass(invitations, c.id);
-                  const isAssigned = Boolean(c.formTeacher) || invite?.status === 'Accepted';
+                  const formTeacherFromTeachers = teachers.find(
+                    (t) =>
+                      Array.isArray(t.classes) &&
+                      t.classes.some((cl) => typeof cl === 'object' && cl !== null && cl.id === c.id && Boolean(cl.isFormTeacher))
+                  );
+                  const invite = formTeacherForClass(invitations, c.id, teachers);
+                  const isAssigned = Boolean(c.formTeacher) || Boolean(formTeacherFromTeachers) || invite?.status === 'Accepted';
                   const isPending = !isAssigned && invite?.status === 'Pending';
                   const displayName = formatClassName(c);
 
-                  const assignedTeacher = teachers.find(
-                    (t) =>
-                      (c.formTeacher && (t.userId === c.formTeacher || t.id === c.formTeacher)) ||
-                      (t.classId && t.classId === c.id) ||
-                      (invite?.status === 'Accepted' && (t.email === invite.email || t.userId === invite.id))
-                  );
+                  const assignedTeacher =
+                    formTeacherFromTeachers ||
+                    teachers.find(
+                      (t) =>
+                        (c.formTeacher && (t.userId === c.formTeacher || t.id === c.formTeacher)) ||
+                        (t.classId && t.classId === c.id) ||
+                        (invite?.status === 'Accepted' && (t.email === invite.email || t.userId === invite.id))
+                    );
                   const teacherDisplayName =
                     assignedTeacher?.fullName ||
                     assignedTeacher?.name ||

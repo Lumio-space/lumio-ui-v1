@@ -1,5 +1,18 @@
 import type { Role } from '@/types/auth.types';
 
+export interface PendingInvitation {
+  id: string;
+  schoolId: string;
+  schoolName: string;
+  role: Role | string;
+  assignmentType?: string;
+  classId?: string;
+  status?: string;
+  expiresAt?: string;
+  createdAt?: string;
+  token?: string;
+}
+
 export interface LoginResponse {
   token?:       string;
   accessToken?: string;
@@ -21,6 +34,7 @@ export interface LoginResponse {
     status:     string;
     classId?:   string;
   }>;
+  pendingInvitations?: PendingInvitation[];
 }
 
 export interface OnboardingResponse {

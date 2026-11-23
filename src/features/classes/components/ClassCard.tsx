@@ -54,7 +54,7 @@ export function ClassCard({
   onEdit,
   onDelete,
 }: ClassCardProps) {
-  const { grade, section, level, capacity, room, teacher, formTeacher, formTeacherName, department, students = 0, subjects = [] } = classRecord;
+  const { grade, section, level, capacity, room, teacher, formTeacher, formTeacherName, department, students, subjects = [] } = classRecord;
   const displayTeacher =
     teacher ||
     formTeacherName ||
@@ -71,7 +71,9 @@ export function ClassCard({
   const displayName = composeClassName(gradeLabel, department, section);
   const needsDepartment = sectionHasDepartment(level) && !hasValidDept;
 
-  const fill = capacity > 0 ? Math.min(100, Math.round((students / capacity) * 100)) : 0;
+  const hasStudentCount = typeof students === 'number';
+  const studentCountDisplay = hasStudentCount ? `${students}/${capacity}` : `— / ${capacity}`;
+  const fill = hasStudentCount && capacity > 0 ? Math.min(100, Math.round(((students ?? 0) / capacity) * 100)) : 0;
 
   return (
     <div
@@ -173,14 +175,14 @@ export function ClassCard({
               Capacity
             </span>
             <span className="font-semibold text-slate-700">
-              {students}/{capacity}
+              {studentCountDisplay}
             </span>
           </div>
           <Progress
             value={fill}
             tone={fill > 90 ? 'gold' : 'purple'}
             size="sm"
-            label={`${displayName} capacity ${students} of ${capacity}`}
+            label={hasStudentCount ? `${displayName} capacity ${students} of ${capacity}` : `${displayName} capacity not recorded`}
           />
         </div>
 

@@ -11,6 +11,8 @@ const safeStorage = {
 export interface AuthUser {
   id?:       string
   name:      string
+  fullName?: string
+  teacherId?: string
   email:     string
   role?:     string
   schoolId?: string

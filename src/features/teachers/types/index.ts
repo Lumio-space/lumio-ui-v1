@@ -24,7 +24,7 @@ export interface AssignFormTeacherPayload {
   teacherId: string;
 }
 
-/** Payload for POST /teachers/assign-subjects */
+/** Payload for POST /teachers/assign-subject-to-teacher */
 export interface AssignTeacherSubjectPayload {
   teacherId: string;
   classId: string;
@@ -148,12 +148,23 @@ export interface AcceptInvitationPayload {
 
 /** Payload for POST /invites/accept-existing */
 export interface AcceptExistingPayload {
-  token: string;
+  token?: string;
+  invitationId?: string;
+}
+
+/** Response from POST /invites/accept-existing */
+export interface AcceptExistingResult {
+  success: boolean;
+  role: string;
+  schoolId: string;
+  schoolName?: string;
+  classId?: string;
 }
 
 /** Payload for POST /invites/decline */
 export interface DeclineInvitationPayload {
-  token: string;
+  token?: string;
+  invitationId?: string;
   reason?: string;
 }
 

@@ -21,7 +21,7 @@ import type { TeacherRecord, TeacherInvitation } from '../types';
 
 interface TeacherRowProps {
   teacher: TeacherRecord;
-  invitations: TeacherInvitation[];
+  invitations?: TeacherInvitation[];
   onView: () => void;
   onRemove?: () => void;
   onToggleStatus?: () => void;
@@ -39,7 +39,7 @@ export function TeacherRow({
   onAssignSubject,
 }: TeacherRowProps) {
   const teacherName = teacher.fullName || teacher.name || 'Teacher';
-  const assignment = assignmentForTeacher(invitations, teacher);
+  const assignment = assignmentForTeacher(invitations || [], teacher);
   const subjects = teacher.subjects?.map((s) => s.title) || [];
 
   return (
@@ -95,7 +95,7 @@ export function TeacherRow({
             icon={<PowerIcon className="h-4 w-4" />}
             onClick={onToggleStatus}
           >
-            {teacher.status === 'active' ? 'Mark inactive' : 'Mark active'}
+            {teacher.status?.toLowerCase() === 'active' ? 'Mark inactive' : 'Mark active'}
           </DropdownItem>
         )}
         {onRemove && (

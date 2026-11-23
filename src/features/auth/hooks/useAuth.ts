@@ -15,6 +15,12 @@ import {
 import type { LoginFormValues } from '@/features/auth/schemas/login.schema'
 import type { ForgotPasswordFormValues } from '@/features/auth/schemas/forgot-password.schema'
 import type { ResetPasswordFormValues } from "@/features/auth/schemas/reset-password.schema";
+import type { LoginResponse, PendingInvitation } from '../types';
+
+export interface UseLoginOptions {
+  onPendingInvitation?: (invitation: PendingInvitation, data: LoginResponse) => void;
+  onSuccess?: (data: LoginResponse, variables: LoginFormValues) => void;
+}
 
 type ResetPasswordMutationValues = Pick<ResetPasswordFormValues, 'newPassword'> & {
   token: string
@@ -46,7 +52,7 @@ function clearAuthCookie() {
   clearSchoolCookie()
 }
 
-export function useLogin() {
+export function useLogin(options?: UseLoginOptions) {
   const router       = useRouter()
   const searchParams = useSearchParams()
   const setAuthenticated = useAuthStore((s) => s.setAuthenticated)
@@ -65,6 +71,7 @@ export function useLogin() {
       const role =
         user?.role ||
         (data.memberships?.[0]?.role as Role) ||
+        (data.pendingInvitations?.[0]?.role as Role) ||
         'SCHOOL_ADMIN'
       const name = user?.name || user?.fullName || user?.email?.split('@')[0] || 'User'
       const schoolId =
@@ -86,6 +93,17 @@ export function useLogin() {
         schoolId,
         classId,
       })
+
+      options?.onSuccess?.(data, variables)
+
+      // If user has no active school membership but has pending invitation(s):
+      const hasActiveSchool = Boolean(schoolId || (data.memberships && data.memberships.length > 0));
+      const firstPending = data.pendingInvitations?.[0];
+
+      if (!hasActiveSchool && firstPending && options?.onPendingInvitation) {
+        options.onPendingInvitation(firstPending, data);
+        return;
+      }
 
       const callbackUrl = searchParams?.get('callbackUrl')
       const destination =

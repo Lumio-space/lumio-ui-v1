@@ -40,6 +40,17 @@ describe('ClassCard', () => {
     expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '80');
   });
 
+  it('renders dash placeholder when student count is not provided by backend', () => {
+    const classWithoutStudentCount: ClassRecord = {
+      ...MOCK_CLASS,
+      students: undefined,
+    };
+    renderWithProviders(<ClassCard classRecord={classWithoutStudentCount} />);
+
+    expect(screen.getByText('Capacity')).toBeInTheDocument();
+    expect(screen.getByText('— / 35')).toBeInTheDocument();
+  });
+
   it('renders form teacher information and status badge', () => {
     renderWithProviders(<ClassCard classRecord={MOCK_CLASS} />);
 

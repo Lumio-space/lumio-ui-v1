@@ -17,7 +17,7 @@ import type { TeacherRecord, TeacherInvitation } from '../types';
 
 interface TeacherCardProps {
   teacher: TeacherRecord;
-  invitations: TeacherInvitation[];
+  invitations?: TeacherInvitation[];
   index: number;
   onClick: () => void;
 }
@@ -29,11 +29,13 @@ export function TeacherCard({
   onClick,
 }: TeacherCardProps) {
   const teacherName = teacher.fullName || teacher.name || 'Teacher';
-  const assignment = assignmentForTeacher(invitations, teacher);
+  const assignment = assignmentForTeacher(invitations || [], teacher);
   const subjects = teacher.subjects || [];
-  const status = teacher.status === 'active' ? 'Active' : teacher.status;
+  const status = teacher.status?.toLowerCase() === 'active' ? 'Active' : teacher.status;
   const rating = typeof teacher.rating === 'number' ? teacher.rating : null;
-  const classesCount = teacher.classes?.length ?? (teacher.classId || assignment?.classId ? 1 : 0);
+  const classesCount = (teacher.classes && teacher.classes.length > 0)
+    ? teacher.classes.length
+    : (teacher.classId || assignment?.classId ? 1 : 0);
   const roleOrDept = teacher.department
     ? (teacher.staffNo ? `${teacher.staffNo} · ${teacher.department}` : teacher.department)
     : (teacher.staffNo ? teacher.staffNo : 'Teaching Faculty');

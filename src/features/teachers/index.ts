@@ -15,6 +15,7 @@ export { AcceptInviteSkeleton } from './components/AcceptInviteSkeleton';
 export { InviteDetailsView } from './components/InviteDetailsView';
 export { InviteSetupView } from './components/InviteSetupView';
 export { InviteLoginView } from './components/InviteLoginView';
+export { PendingInvitationModal } from '@/features/invitations/components/PendingInvitationModal';
 
 export {
   useTeachers,

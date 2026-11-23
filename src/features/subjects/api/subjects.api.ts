@@ -245,7 +245,10 @@ export async function updateSubject(
   payload: UpdateSubjectPayload
 ): Promise<SubjectRecord> {
   const backendPayload: Record<string, unknown> = {};
-  if (payload.name !== undefined) backendPayload.name = payload.name.trim();
+  if (payload.name !== undefined || (payload as any).title !== undefined) {
+    const rawTitle = ((payload as any).title ?? payload.name)?.trim();
+    backendPayload.title = rawTitle;
+  }
   if (payload.code !== undefined) backendPayload.code = payload.code.trim().toUpperCase();
   if (payload.status !== undefined) backendPayload.status = payload.status;
   if (payload.section !== undefined) {
@@ -262,6 +265,11 @@ export async function updateSubject(
   }
   if (payload.classIds !== undefined) {
     backendPayload.classIds = payload.classIds;
+  }
+  if ((payload as any).subjectId !== undefined) {
+    backendPayload.subjectId = (payload as any).subjectId;
+  } else if (backendPayload.title !== undefined && backendPayload.code !== undefined) {
+    backendPayload.subjectId = id;
   }
 
   const response = await apiClient.patch<BackendSubjectItem>(
@@ -286,8 +294,10 @@ export async function updateSubject(
   return normalizeSubject(response.data);
 }
 
-export async function deleteSubject(id: string): Promise<{ success: boolean }> {
-  const response = await apiClient.delete<{ success: boolean }>(`/subjects/${id}`);
+export async function deleteSubject(id: string): Promise<{ success: boolean; message?: string }> {
+  const response = await apiClient.delete<{ success: boolean; message?: string }>('/subjects', {
+    data: { subjectId: id },
+  });
   return response.data;
 }
 
@@ -325,10 +335,10 @@ export async function assignTeacherToSubject(
   classId: string,
   subjectId: string
 ): Promise<{ success: boolean; message?: string }> {
-  // Uses existing backend route: POST /teachers/assign-subjects
-  const response = await apiClient.post<{ success: boolean; message?: string }>(
-    '/teachers/assign-subjects',
+  // Uses existing backend route: POST /teachers/assign-subject-to-teacher
+  const response = await apiClient.post<{ success?: boolean; message?: string }>(
+    '/teachers/assign-subject-to-teacher',
     { teacherId, classId, subjectId }
   );
-  return response.data;
+  return { success: true, ...response.data };
 }

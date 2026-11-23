@@ -111,7 +111,8 @@ export interface AcceptInvitationResult {
 
 /** Payload for POST /invites/accept-existing */
 export interface AcceptExistingPayload {
-  token: string;
+  token?: string;
+  invitationId?: string;
 }
 
 /** Response from POST /invites/accept-existing */
@@ -119,12 +120,14 @@ export interface AcceptExistingResult {
   success: boolean;
   role: string;
   schoolId: string;
+  schoolName?: string;
   classId?: string;
 }
 
 /** Payload for POST /invites/decline */
 export interface DeclineInvitationPayload {
-  token: string;
+  token?: string;
+  invitationId?: string;
   reason?: string;
 }
 

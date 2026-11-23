@@ -105,9 +105,9 @@ export async function assignSubjectToTeacher(
   teacherId: string,
   classId: string,
   subjectId: string
-): Promise<{ message: string; teacherId: string; classId: string; subjectId: string }> {
-  const response = await apiClient.post<{ message: string; teacherId: string; classId: string; subjectId: string }>(
-    '/teachers/assign-subjects',
+): Promise<{ message?: string; teacherId: string; classId: string; subjectId: string; id?: string }> {
+  const response = await apiClient.post<{ message?: string; teacherId: string; classId: string; subjectId: string; id?: string }>(
+    '/teachers/assign-subject-to-teacher',
     { teacherId, classId, subjectId }
   );
   return response.data;
@@ -149,6 +149,9 @@ export const declineInvitation = (payload: DeclineInvitationPayload) =>
 
 export const cancelInvitation = (invitationIdOrToken: string) =>
   invitationsApi.cancelInvitation(invitationIdOrToken);
+
+export const fetchPendingInvitations = () =>
+  invitationsApi.fetchPendingInvitations();
 
 
 

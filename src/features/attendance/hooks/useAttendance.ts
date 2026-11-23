@@ -8,8 +8,9 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   fetchClassAttendance,
   saveClassAttendance,
+  updateClassAttendance,
 } from '../api/attendance.api';
-import type { SaveAttendancePayload } from '../types';
+import type { SaveAttendancePayload, UpdateAttendancePayload } from '../types';
 
 export const attendanceQueryKeys = {
   all: ['attendance'] as const,
@@ -37,6 +38,28 @@ export function useSaveAttendance() {
           variables.classId,
           variables.date
         ),
+      });
+      queryClient.invalidateQueries({
+        queryKey: attendanceQueryKeys.all,
+      });
+    },
+  });
+}
+
+export function useUpdateAttendance() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (payload: UpdateAttendancePayload) => updateClassAttendance(payload),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: attendanceQueryKeys.byClassAndDate(
+          variables.classId,
+          variables.date
+        ),
+      });
+      queryClient.invalidateQueries({
+        queryKey: attendanceQueryKeys.all,
       });
     },
   });

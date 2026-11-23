@@ -6,3 +6,4 @@ export * from './components/InviteParentModal';
 export * from './components/InviteStudentModal';
 export * from './components/ParentsView';
 export * from './components/StudentsView';
+export * from './components/PendingInvitationModal';

@@ -21,6 +21,7 @@ import {
 import type {
   InviteTeacherPayload,
   TeacherInvitation,
+  TeacherRecord,
 } from '../types';
 
 /**
@@ -58,9 +59,47 @@ export function useAssignFormTeacher() {
   return useMutation({
     mutationFn: ({ classId, teacherId }: { classId: string; teacherId: string }) =>
       setFormTeacher(classId, teacherId),
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
+      queryClient.setQueryData<TeacherRecord[]>(teacherQueryKeys.lists(), (old) => {
+        if (!old || !Array.isArray(old)) return old;
+        return old.map((t) => {
+          const tId = t.userId || t.teacherId || t.id;
+          if (tId === variables.teacherId) {
+            const existingClasses = Array.isArray(t.classes) ? [...t.classes] : [];
+            const idx = existingClasses.findIndex(
+              (c) => typeof c !== 'string' && c.id === variables.classId
+            );
+            if (idx >= 0) {
+              const existing = existingClasses[idx] as import('../types').TeacherClassAssignment;
+              existingClasses[idx] = { ...existing, isFormTeacher: true };
+            } else {
+              existingClasses.push({ id: variables.classId, isFormTeacher: true });
+            }
+            return { ...t, classes: existingClasses };
+          } else if (Array.isArray(t.classes)) {
+            const hasForm = t.classes.some((c) => typeof c !== 'string' && c.id === variables.classId && c.isFormTeacher);
+            if (hasForm) {
+              const updated = t.classes.map((c) =>
+                typeof c !== 'string' && c.id === variables.classId ? { ...c, isFormTeacher: false } : c
+              );
+              return { ...t, classes: updated };
+            }
+          }
+          return t;
+        });
+      });
+      queryClient.setQueryData<any>(classQueryKeys.lists(), (old: any) => {
+        if (!old) return old;
+        const updateClass = (cls: any) =>
+          cls.id === variables.classId ? { ...cls, formTeacher: variables.teacherId } : cls;
+        if (Array.isArray(old)) return old.map(updateClass);
+        if (old.data && Array.isArray(old.data)) {
+          return { ...old, data: old.data.map(updateClass) };
+        }
+        return old;
+      });
       queryClient.invalidateQueries({ queryKey: teacherQueryKeys.lists() });
-      queryClient.invalidateQueries({ queryKey: classQueryKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: classQueryKeys.all });
     },
   });
 }
@@ -84,6 +123,7 @@ export function useAssignTeacherSubject() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: teacherQueryKeys.lists() });
       queryClient.invalidateQueries({ queryKey: classQueryKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: ['subjects'] });
     },
   });
 }

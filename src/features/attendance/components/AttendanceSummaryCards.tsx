@@ -22,7 +22,10 @@ export function AttendanceSummaryCards({
   summary,
   classNameDisplay = 'Class',
 }: AttendanceSummaryCardsProps) {
-  const total = (summary.present + summary.absent + summary.late + summary.excused) || summary.total || 0;
+  const total =
+    typeof summary.total === 'number' && summary.total > 0
+      ? summary.total
+      : (summary.present + summary.absent + summary.late + summary.excused);
   const rate = total > 0 ? Math.round((summary.present / total) * 100) : 0;
 
   return (

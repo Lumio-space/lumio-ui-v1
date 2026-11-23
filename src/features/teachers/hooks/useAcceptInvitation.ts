@@ -3,6 +3,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/stores/auth.store';
+import { useSchoolStore } from '@/stores/school.store';
 import { setAuthCookie, setSchoolCookie } from '@/features/auth/hooks/useAuth';
 import { classQueryKeys } from '@/features/classes/constants';
 import { teacherQueryKeys } from '../constants';
@@ -98,6 +99,18 @@ export function useAcceptNewTeacher() {
 }
 
 /**
+ * Hook to fetch pending invitations for current user.
+ */
+export function usePendingInvitations(enabled: boolean = true) {
+  return useQuery({
+    queryKey: ['invitations', 'pending'],
+    queryFn: teachersApi.fetchPendingInvitations,
+    enabled,
+    staleTime: 60 * 1000,
+  });
+}
+
+/**
  * Hook for an existing authenticated teacher to accept the invitation.
  */
 export function useAcceptExistingTeacher() {
@@ -107,7 +120,7 @@ export function useAcceptExistingTeacher() {
 
   return useMutation({
     mutationFn: (payload: AcceptExistingPayload) => {
-      if (useInvitationsStore.getState().isInvitationCancelled(payload.token)) {
+      if (payload.token && useInvitationsStore.getState().isInvitationCancelled(payload.token)) {
         throw new Error(
           'This invitation is no longer valid. The link may have been revoked or cancelled by an administrator.'
         );
@@ -118,6 +131,9 @@ export function useAcceptExistingTeacher() {
       const currentUser = useAuthStore.getState().user;
       if (data.schoolId) {
         setSchoolCookie(data.schoolId, true);
+      }
+      if (data.schoolName) {
+        useSchoolStore.getState().setSchoolName(data.schoolName);
       }
 
       setUser({
@@ -139,6 +155,7 @@ export function useAcceptExistingTeacher() {
 
       queryClient.invalidateQueries({ queryKey: teacherQueryKeys.all });
       queryClient.invalidateQueries({ queryKey: classQueryKeys.all });
+      queryClient.invalidateQueries({ queryKey: ['invitations', 'pending'] });
 
       router.push('/dashboard');
     },
@@ -155,9 +172,16 @@ export function useDeclineInvitation() {
     mutationFn: (payload: DeclineInvitationPayload) =>
       teachersApi.declineInvitation(payload),
     onSuccess: (_data, variables) => {
-      useInvitationsStore.getState().markDeclined(variables.token);
+      if (variables.token) {
+        useInvitationsStore.getState().markDeclined(variables.token);
+      } else if (variables.invitationId) {
+        useInvitationsStore.getState().markDeclined(variables.invitationId);
+      }
       queryClient.invalidateQueries({ queryKey: teacherQueryKeys.all });
-      queryClient.invalidateQueries({ queryKey: ['invitation', 'validate', variables.token] });
+      queryClient.invalidateQueries({ queryKey: ['invitations', 'pending'] });
+      if (variables.token) {
+        queryClient.invalidateQueries({ queryKey: ['invitation', 'validate', variables.token] });
+      }
     },
   });
 }

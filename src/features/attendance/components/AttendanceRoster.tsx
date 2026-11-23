@@ -16,6 +16,7 @@ import {
   ShieldCheckIcon,
   SaveIcon,
   CheckCheckIcon,
+  EyeIcon,
 } from 'lucide-react';
 import {
   Card,
@@ -26,6 +27,7 @@ import {
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Avatar } from '@/components/shared/Avatar';
+import { Badge } from '@/components/shared/Badge';
 import { cn } from '@/lib/utils';
 import type {
   AttendanceStatus,
@@ -37,9 +39,10 @@ interface AttendanceRosterProps {
   students: StudentAttendanceRow[];
   date: string;
   classNameDisplay: string;
-  onSave: (marks: Record<string, AttendanceStatus>) => Promise<void>;
-  isSaving: boolean;
+  onSave?: (marks: Record<string, AttendanceStatus>) => Promise<void>;
+  isSaving?: boolean;
   onSummaryChange?: (summary: ClassAttendanceSummary) => void;
+  readOnly?: boolean;
 }
 
 export function AttendanceRoster({
@@ -47,8 +50,9 @@ export function AttendanceRoster({
   date,
   classNameDisplay,
   onSave,
-  isSaving,
+  isSaving = false,
   onSummaryChange,
+  readOnly = false,
 }: AttendanceRosterProps) {
   // Initialize marks from server student records (default to 'present' if null)
   const [marks, setMarks] = useState<Record<string, AttendanceStatus>>({});
@@ -57,14 +61,26 @@ export function AttendanceRoster({
   useEffect(() => {
     const initialMarks: Record<string, AttendanceStatus> = {};
     students.forEach((s) => {
-      initialMarks[s.studentId] = s.status || 'present';
+      const normalized = s.status ? (String(s.status).toLowerCase() as AttendanceStatus) : null;
+      initialMarks[s.studentId] = normalized || 'present';
     });
     setMarks(initialMarks);
     setSaved(false);
   }, [students]);
 
-  // Compute live summary from marks
+  // Compute live summary from marks or students
   useEffect(() => {
+    if (readOnly) {
+      const summary: ClassAttendanceSummary = {
+        present: students.filter((s) => s.status?.toLowerCase() === 'present').length,
+        absent: students.filter((s) => s.status?.toLowerCase() === 'absent').length,
+        late: students.filter((s) => s.status?.toLowerCase() === 'late').length,
+        excused: students.filter((s) => s.status?.toLowerCase() === 'excused').length,
+        total: students.length,
+      };
+      onSummaryChange?.(summary);
+      return;
+    }
     const summary: ClassAttendanceSummary = {
       present: Object.values(marks).filter((m) => m === 'present').length,
       absent: Object.values(marks).filter((m) => m === 'absent').length,
@@ -73,9 +89,10 @@ export function AttendanceRoster({
       total: students.length,
     };
     onSummaryChange?.(summary);
-  }, [marks, students.length, onSummaryChange]);
+  }, [marks, students, readOnly, onSummaryChange]);
 
   function setMark(studentId: string, status: AttendanceStatus) {
+    if (readOnly) return;
     setMarks((prev) => ({
       ...prev,
       [studentId]: status,
@@ -84,6 +101,7 @@ export function AttendanceRoster({
   }
 
   function handleMarkAllPresent() {
+    if (readOnly) return;
     const allPresent: Record<string, AttendanceStatus> = {};
     students.forEach((s) => {
       allPresent[s.studentId] = 'present';
@@ -93,6 +111,7 @@ export function AttendanceRoster({
   }
 
   async function handleSaveClick() {
+    if (readOnly || !onSave) return;
     await onSave(marks);
     setSaved(true);
   }
@@ -143,36 +162,45 @@ export function AttendanceRoster({
             {classNameDisplay} · {date}
           </CardDescription>
         </div>
-        <div className="flex items-center gap-2">
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            onClick={handleMarkAllPresent}
-            disabled={students.length === 0 || isSaving}
-            leftIcon={<CheckCheckIcon className="h-4 w-4" />}
-          >
-            Mark all present
-          </Button>
+        {readOnly ? (
+          <div className="flex items-center gap-2">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
+              <EyeIcon className="h-3.5 w-3.5 text-slate-400" />
+              Read-only view
+            </span>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={handleMarkAllPresent}
+              disabled={students.length === 0 || isSaving}
+              leftIcon={<CheckCheckIcon className="h-4 w-4" />}
+            >
+              Mark all present
+            </Button>
 
-          <Button
-            type="button"
-            size="sm"
-            disabled={students.length === 0 || isSaving}
-            loading={isSaving}
-            variant={saved ? 'secondary' : 'default'}
-            leftIcon={
-              saved ? (
-                <CheckIcon className="h-4 w-4 text-emerald-600" />
-              ) : (
-                <SaveIcon className="h-4 w-4" />
-              )
-            }
-            onClick={handleSaveClick}
-          >
-            {saved ? 'Saved' : 'Save register'}
-          </Button>
-        </div>
+            <Button
+              type="button"
+              size="sm"
+              disabled={students.length === 0 || isSaving}
+              loading={isSaving}
+              variant={saved ? 'secondary' : 'default'}
+              leftIcon={
+                saved ? (
+                  <CheckIcon className="h-4 w-4 text-emerald-600" />
+                ) : (
+                  <SaveIcon className="h-4 w-4" />
+                )
+              }
+              onClick={handleSaveClick}
+            >
+              {saved ? 'Saved' : 'Save register'}
+            </Button>
+          </div>
+        )}
       </CardHeader>
 
       <CardContent className="space-y-2">
@@ -181,47 +209,87 @@ export function AttendanceRoster({
             No students enrolled in this class roster.
           </div>
         ) : (
-          students.map((s) => (
-            <div
-              key={s.studentId}
-              className="flex items-center gap-3 rounded-xl border border-slate-100 bg-white p-3 hover:border-slate-200 transition-colors"
-            >
-              <Avatar name={s.name} src={s.avatar} size="sm" />
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-semibold text-slate-800">
-                  {s.name}
-                </p>
-                <p className="text-xs text-slate-400">
-                  {s.rollNo ? `Roll #${s.rollNo}` : 'Student'}
-                </p>
-              </div>
+          students.map((s) => {
+            const studentName = s.name || (s as any).fullName || 'Student';
+            return (
+              <div
+                key={s.studentId}
+                className="flex items-center gap-3 rounded-xl border border-slate-100 bg-white p-3 hover:border-slate-200 transition-colors"
+              >
+                <Avatar name={studentName} src={s.avatar} size="sm" />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-semibold text-slate-800">
+                    {studentName}
+                  </p>
+                  <p className="text-xs text-slate-400">
+                    {s.rollNo ? `Roll #${s.rollNo}` : 'Student'}
+                  </p>
+                </div>
 
-              {/* Status Segmented Buttons */}
-              <div className="flex items-center gap-1 bg-slate-50/80 p-1 rounded-xl border border-slate-100">
-                {buttons.map((b) => {
-                  const isSelected = marks[s.studentId] === b.status;
-                  return (
-                    <button
-                      key={b.status}
-                      type="button"
-                      onClick={() => setMark(s.studentId, b.status)}
-                      aria-label={`Mark ${s.name} ${b.label}`}
-                      aria-pressed={isSelected}
-                      title={b.label}
-                      className={cn(
-                        'flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-lg text-xs font-semibold transition-all',
-                        isSelected
-                          ? b.on
-                          : cn('bg-transparent', b.off)
-                      )}
-                    >
-                      <b.icon className="h-4 w-4" />
-                    </button>
-                  );
-                })}
+                {readOnly ? (
+                  <div className="flex items-center">
+                    {(() => {
+                      const status = s.status ? String(s.status).toLowerCase() : null;
+                      if (status === 'present') {
+                        return (
+                          <Badge tone="green" dot>
+                            Present
+                          </Badge>
+                        );
+                      }
+                      if (status === 'late') {
+                        return (
+                          <Badge tone="gold" dot>
+                            Late
+                          </Badge>
+                        );
+                      }
+                      if (status === 'absent') {
+                        return (
+                          <Badge tone="red" dot>
+                            Absent
+                          </Badge>
+                        );
+                      }
+                      if (status === 'excused') {
+                        return (
+                          <Badge tone="indigo" dot>
+                            Excused
+                          </Badge>
+                        );
+                      }
+                      return <Badge tone="slate">Unmarked</Badge>;
+                    })()}
+                  </div>
+                ) : (
+                  /* Status Segmented Buttons */
+                  <div className="flex items-center gap-1 bg-slate-50/80 p-1 rounded-xl border border-slate-100">
+                    {buttons.map((b) => {
+                      const isSelected = marks[s.studentId] === b.status;
+                      return (
+                        <button
+                          key={b.status}
+                          type="button"
+                          onClick={() => setMark(s.studentId, b.status)}
+                          aria-label={`Mark ${studentName} ${b.label}`}
+                          aria-pressed={isSelected}
+                          title={b.label}
+                          className={cn(
+                            'flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-lg text-xs font-semibold transition-all',
+                            isSelected
+                              ? b.on
+                              : cn('bg-transparent', b.off)
+                          )}
+                        >
+                          <b.icon className="h-4 w-4" />
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
-            </div>
-          ))
+            );
+          })
         )}
       </CardContent>
     </Card>
