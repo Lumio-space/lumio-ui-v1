@@ -34,11 +34,19 @@ export function normalizeGradeLevelForBackend(gradeLevel: string): string {
 }
 
 export async function fetchClasses(): Promise<ClassRecord[]> {
-  const response = await apiClient.get<ClassRecord[] | { data: ClassRecord[] }>('/classes/');
-  const data = Array.isArray(response.data)
-    ? response.data
-    : (response.data as { data?: ClassRecord[] })?.data ?? [];
-  return data;
+  try {
+    const response = await apiClient.get<ClassRecord[] | { data: ClassRecord[] }>('/classes/');
+    const data = Array.isArray(response.data)
+      ? response.data
+      : (response.data as { data?: ClassRecord[] })?.data ?? [];
+    return data;
+  } catch (err: unknown) {
+    const axiosError = err as { response?: { status?: number } };
+    if (axiosError?.response?.status === 404 || axiosError?.response?.status === 403) {
+      return [];
+    }
+    throw err;
+  }
 }
 
 export async function createClass(payload: CreateClassPayload): Promise<ClassRecord> {

@@ -161,10 +161,10 @@ export async function fetchSubjects(): Promise<SubjectRecord[]> {
       : (response.data as { data?: BackendSubjectItem[] })?.data ?? [];
     return rawData.map(normalizeSubject);
   } catch (err: unknown) {
-    // If backend GET /subjects endpoint is not yet mounted (returns 404),
-    // return an empty array to prevent breaking the UI while backend is being updated.
+    // If backend GET /subjects endpoint returns 404 or 403 Forbidden (for roles without VIEW_SUBJECTS),
+    // return an empty array to prevent query error cascades and UI freezing.
     const axiosError = err as { response?: { status?: number } };
-    if (axiosError?.response?.status === 404) {
+    if (axiosError?.response?.status === 404 || axiosError?.response?.status === 403) {
       return [];
     }
     throw err;

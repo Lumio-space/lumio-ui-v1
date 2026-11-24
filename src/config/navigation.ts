@@ -120,7 +120,7 @@ export const NAV_ITEMS: NavItem[] = [
     label:      'Settings',
     href:       '/settings',
     icon:       SettingsIcon,
-    roles:      ['admin', 'teacher', 'parent', 'student'],
+    roles:      ['admin'],
     permission: 'VIEW_SETTINGS',
   },
 ];

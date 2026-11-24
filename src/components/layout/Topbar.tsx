@@ -77,9 +77,6 @@ function DropdownItem({ icon, danger, children, ...props }: DropdownItemProps) {
 }
 
 function DropdownDivider() { return <div className="my-1 h-px bg-slate-100" /> }
-function DropdownLabel({ children }: { children: ReactNode }) {
-  return <div className="px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-slate-400">{children}</div>
-}
 
 /* ── Notifications mock ───────────────────────────────────── */
 const NOTIFICATIONS = [
@@ -173,13 +170,17 @@ export function Topbar({ onMenuClickAction }: { onMenuClickAction: () => void })
             {displayEmail && <p className="text-xs text-slate-500">{displayEmail}</p>}
           </div>
           <DropdownDivider />
-          <DropdownItem icon={<UserIcon className="h-4 w-4" />} onClick={() => router.push('/settings')}>
-            My profile
-          </DropdownItem>
-          <DropdownItem icon={<SettingsIcon className="h-4 w-4" />} onClick={() => router.push('/settings')}>
-            Settings
-          </DropdownItem>
-          <DropdownDivider />
+          {role === 'admin' && (
+            <>
+              <DropdownItem icon={<UserIcon className="h-4 w-4" />} onClick={() => router.push('/settings')}>
+                My profile
+              </DropdownItem>
+              <DropdownItem icon={<SettingsIcon className="h-4 w-4" />} onClick={() => router.push('/settings')}>
+                Settings
+              </DropdownItem>
+              <DropdownDivider />
+            </>
+          )}
           <DropdownItem danger icon={<LogOutIcon className="h-4 w-4" />}
             onClick={() => logout()} disabled={isLoggingOut}>
             {isLoggingOut ? 'Signing out…' : 'Sign out'}

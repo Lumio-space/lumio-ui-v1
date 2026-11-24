@@ -87,6 +87,7 @@ export function Sidebar({ mobileOpen, onClose }: SidebarProps) {
               <Link
                 key={item.href}
                 href={item.href}
+                prefetch={true}
                 onClick={isMobile ? onClose : undefined}
                 className={cn(
                   'group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors',
@@ -130,7 +131,7 @@ export function Sidebar({ mobileOpen, onClose }: SidebarProps) {
     <>
       {/* Desktop */}
       <aside className="hidden lg:block lg:w-64 lg:shrink-0">
-        <div className="fixed inset-y-0 left-0 w-64">{renderContent(false)}</div>
+        <div className="fixed inset-y-0 left-0 z-30 w-64">{renderContent(false)}</div>
       </aside>
 
       {/* Mobile drawer */}

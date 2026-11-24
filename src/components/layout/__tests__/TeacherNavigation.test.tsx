@@ -101,12 +101,15 @@ describe('Teacher Navigation from Results to Dashboard', () => {
       '/timetable',
       '/parents',
       '/announcements',
-      '/settings',
     ];
 
     const { rerender, container } = renderWithProviders(
       <Sidebar mobileOpen={false} onClose={vi.fn()} />
     );
+
+    // Settings must be strictly admin-only and never visible in teacher navigation
+    const settingsLink = screen.queryByRole('link', { name: /settings/i });
+    expect(settingsLink).not.toBeInTheDocument();
 
     for (const route of teacherRoutes) {
       currentPathname = route;
