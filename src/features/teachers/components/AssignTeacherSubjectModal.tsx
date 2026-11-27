@@ -15,6 +15,8 @@ import { useSubjects } from '@/features/subjects/hooks';
 import {
   GRADE_LEVEL_LABELS,
   composeClassName,
+  extractActiveClasses,
+  sortClassesSerially,
 } from '@/features/classes/constants';
 import { SECTION_TO_BACKEND_ENUM } from '@/features/subjects/api/subjects.api';
 import type { ClassRecord } from '@/features/classes/types';
@@ -45,8 +47,7 @@ export function AssignTeacherSubjectModal({
   const [formError, setFormError] = useState<string | null>(null);
 
   const classes: ClassRecord[] = useMemo(() => {
-    if (Array.isArray(rawClasses)) return rawClasses;
-    return (rawClasses as any)?.data || (rawClasses as any)?.classes || [];
+    return sortClassesSerially(extractActiveClasses<ClassRecord>(rawClasses));
   }, [rawClasses]);
 
   const subjects: SubjectRecord[] = useMemo(() => {

@@ -29,7 +29,10 @@ import { useClasses } from '@/features/classes/hooks';
 import {
   GRADE_LEVEL_LABELS,
   composeClassName,
+  extractActiveClasses,
+  sortClassesSerially,
 } from '@/features/classes/constants';
+import { isPermissionError, getApiErrorMessage } from '@/lib/api/error';
 import type { ClassRecord } from '@/features/classes/types';
 import {
   useClassAttendance,
@@ -40,8 +43,11 @@ import {
   ParentAttendanceView,
   type ClassAttendanceSummary,
   type AttendanceStatus,
+  type StudentAttendanceRow,
 } from '@/features/attendance';
 import { useAuthStore } from '@/stores/auth.store';
+
+const EMPTY_STUDENTS: StudentAttendanceRow[] = [];
 
 export default function AttendancePage() {
   const searchParams = useSearchParams();
@@ -52,11 +58,15 @@ export default function AttendancePage() {
   const todayStr = useMemo(() => format(new Date(), 'yyyy-MM-dd'), []);
   const [selectedDate, setSelectedDate] = useState(todayStr);
 
-  const { data: rawClasses = [], isLoading: classesLoading } = useClasses();
+  const {
+    data: rawClasses,
+    isLoading: classesLoading,
+    error: classesError,
+  } = useClasses();
   const classes: ClassRecord[] = useMemo(() => {
-    if (Array.isArray(rawClasses)) return rawClasses;
-    return (rawClasses as any)?.data || (rawClasses as any)?.classes || [];
+    return sortClassesSerially(extractActiveClasses<ClassRecord>(rawClasses));
   }, [rawClasses]);
+  const isClassesForbidden = isPermissionError(classesError);
 
   const [selectedClassId, setSelectedClassId] = useState<string>('');
 
@@ -122,7 +132,10 @@ export default function AttendancePage() {
     }
   }, [attendanceData?.summary]);
 
-  const students = attendanceData?.students || [];
+  const students = useMemo(
+    () => attendanceData?.students ?? EMPTY_STUDENTS,
+    [attendanceData?.students]
+  );
 
   // Permissions: Only the designated Form Teacher can mark/edit attendance. Admins and non-form staff have view-only access.
   const isFormTeacher = useMemo(() => {
@@ -358,19 +371,34 @@ export default function AttendancePage() {
         </div>
       )}
 
-      {/* General Error Banner */}
-      {attendanceError && !isForbidden && (
+      {/* General / Permission Error Banner */}
+      {classesError && isClassesForbidden ? (
+        <div
+          role="alert"
+          className="flex items-start gap-3 rounded-2xl bg-amber-50 border border-amber-200/80 p-4 text-sm text-amber-900"
+        >
+          <LockIcon className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+          <div>
+            <p className="font-semibold text-amber-950">
+              Class List Access Restricted
+            </p>
+            <p className="mt-0.5 text-xs text-amber-800 leading-relaxed">
+              Your account does not currently have permission to list school classes from the backend API.
+            </p>
+          </div>
+        </div>
+      ) : (classesError || (attendanceError && !isForbidden)) && (
         <div
           role="alert"
           className="flex items-center gap-3 rounded-2xl bg-red-50 border border-red-200 p-4 text-sm text-red-800"
         >
           <AlertCircleIcon className="h-5 w-5 text-red-500 shrink-0" />
           <div>
-            <p className="font-medium">Failed to load attendance records</p>
+            <p className="font-medium">
+              {classesError ? 'Failed to load classes' : 'Failed to load attendance records'}
+            </p>
             <p className="text-xs text-red-600">
-              {(attendanceError as any)?.response?.data?.message ||
-                attendanceError.message ||
-                'An error occurred'}
+              {getApiErrorMessage(classesError || attendanceError, 'An error occurred')}
             </p>
           </div>
         </div>
@@ -386,12 +414,37 @@ export default function AttendancePage() {
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
         {/* Register Roster Column */}
         <div className="lg:col-span-3">
-          {attendanceLoading ? (
+          {classesLoading || attendanceLoading ? (
             <div className="flex flex-col items-center justify-center p-16 rounded-2xl border border-slate-100 bg-white shadow-xs">
               <Loader2Icon className="h-8 w-8 animate-spin text-indigo-600" />
               <p className="mt-3 text-sm text-slate-500">Loading student roster…</p>
             </div>
-          ) : !isForbidden ? (
+          ) : isForbidden ? (
+            <div className="rounded-2xl border border-dashed border-amber-200 bg-amber-50/50 p-12 text-center">
+              <LockIcon className="mx-auto h-8 w-8 text-amber-500 mb-2" />
+              <p className="font-semibold text-amber-900">Roster Locked</p>
+              <p className="mt-1 text-xs text-amber-700 max-w-sm mx-auto">
+                Only the assigned Form Teacher of {classNameDisplay} can record and edit this register.
+                Macro-level analytics and monthly trends remain visible.
+              </p>
+            </div>
+          ) : classesError || attendanceError ? (
+            <div className="rounded-2xl border border-dashed border-red-200 bg-red-50/40 p-12 text-center">
+              <AlertCircleIcon className="mx-auto h-8 w-8 text-red-500 mb-2" />
+              <p className="font-semibold text-red-900">Attendance Register Unavailable</p>
+              <p className="mt-1 text-xs text-red-700 max-w-sm mx-auto">
+                Class or attendance data could not be retrieved from the server.
+              </p>
+            </div>
+          ) : !selectedClassId ? (
+            <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-12 text-center">
+              <SchoolIcon className="mx-auto h-8 w-8 text-slate-300 mb-2" />
+              <p className="font-semibold text-slate-800">No Classes Available</p>
+              <p className="mt-1 text-xs text-slate-500 max-w-sm mx-auto">
+                No classes are available for your account to display an attendance register.
+              </p>
+            </div>
+          ) : (
             <AttendanceRoster
               students={students}
               date={selectedDate}
@@ -401,15 +454,6 @@ export default function AttendancePage() {
               onSummaryChange={setLiveSummary}
               readOnly={!canMarkAttendance}
             />
-          ) : (
-            <div className="rounded-2xl border border-dashed border-amber-200 bg-amber-50/50 p-12 text-center">
-              <LockIcon className="mx-auto h-8 w-8 text-amber-500 mb-2" />
-              <p className="font-semibold text-amber-900">Roster Locked</p>
-              <p className="mt-1 text-xs text-amber-700 max-w-sm mx-auto">
-                Only the assigned Form Teacher of {classNameDisplay} can record and edit this register.
-                Macro-level analytics and monthly trends remain visible.
-              </p>
-            </div>
           )}
         </div>
 

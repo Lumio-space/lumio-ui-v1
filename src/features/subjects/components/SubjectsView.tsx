@@ -60,8 +60,10 @@ import {
   useAssignTeacher,
 } from '../hooks';
 import { useClasses } from '@/features/classes/hooks';
+import { extractActiveClasses } from '@/features/classes/constants';
 import type { ClassRecord } from '@/features/classes/types';
 import { useTeachers } from '@/features/teachers/hooks';
+import { isNotFoundError, getApiErrorMessage } from '@/lib/api/error';
 
 import { CreateSubjectModal } from './CreateSubjectModal';
 import { EditSubjectModal } from './EditSubjectModal';
@@ -94,14 +96,7 @@ export function SubjectsView() {
   }, [subjectsData]);
 
   const classes = useMemo(() => {
-    if (Array.isArray(classesData)) return classesData;
-    if (classesData && typeof classesData === 'object') {
-      const anyData = classesData as { data?: unknown; classes?: unknown; items?: unknown };
-      if (Array.isArray(anyData.data)) return anyData.data as ClassRecord[];
-      if (Array.isArray(anyData.classes)) return anyData.classes as ClassRecord[];
-      if (Array.isArray(anyData.items)) return anyData.items as ClassRecord[];
-    }
-    return [];
+    return extractActiveClasses<ClassRecord>(classesData);
   }, [classesData]);
 
   // Teachers mapped to TeacherOption shape
@@ -356,8 +351,9 @@ export function SubjectsView() {
           );
         },
         onError: (err) => {
-          const msg =
-            err instanceof Error ? err.message : 'Failed to assign classes to subject.';
+          const msg = isNotFoundError(err)
+            ? 'Explicit subject-to-class assignment is currently unsupported by the backend API. Classes are attached automatically by school section and department when a subject is created.'
+            : getApiErrorMessage(err, 'Failed to assign classes to subject.');
           setAssignmentError(msg);
         },
       }
@@ -369,47 +365,49 @@ export function SubjectsView() {
   function handleSaveTeacher(offeringId: string, teacherId: string | null) {
     setTeacherAssignmentError(null);
 
-    if (teacherForOffering && teacherId) {
-      const targetSubject = teacherForOffering.subject;
-      const targetOffering = teacherForOffering.offering;
-      const matchedTeacher = teachers.find((t) => t.id === teacherId);
-      const teacherName = matchedTeacher?.name || 'Teacher';
+    if (!teacherForOffering) return;
 
-      assignTeacherMutation.mutate(
-        {
-          teacherId,
-          classId: targetOffering.classId,
-          subjectId: targetSubject.id,
-        },
-        {
-          onSuccess: () => {
-            setLocalOfferings((prev) =>
-              prev.map((o) =>
-                o.id === offeringId ? { ...o, teacherIds: [teacherId] } : o
-              )
-            );
-            setTeacherForOffering(null);
-            setSuccessMessage(`Successfully assigned ${teacherName} to ${targetSubject.name}.`);
-          },
-          onError: (err) => {
-            const msg = err instanceof Error ? err.message : 'Failed to assign teacher to subject.';
-            setTeacherAssignmentError(msg);
-          },
-        }
+    if (!teacherId) {
+      setTeacherAssignmentError(
+        'Removing an assigned teacher from a subject offering is not currently supported by the backend API. Select another teacher to reassign.'
       );
-    } else {
-      setLocalOfferings((prev) =>
-        prev.map((o) =>
-          o.id === offeringId ? { ...o, teacherIds: [] } : o
-        )
-      );
-      setTeacherForOffering(null);
+      return;
     }
+
+    const targetSubject = teacherForOffering.subject;
+    const targetOffering = teacherForOffering.offering;
+    const matchedTeacher = teachers.find((t) => t.id === teacherId);
+    const teacherName = matchedTeacher?.name || 'Teacher';
+
+    assignTeacherMutation.mutate(
+      {
+        teacherId,
+        classId: targetOffering.classId,
+        subjectId: targetSubject.id,
+      },
+      {
+        onSuccess: () => {
+          setLocalOfferings((prev) =>
+            prev.map((o) =>
+              o.id === offeringId ? { ...o, teacherIds: [teacherId] } : o
+            )
+          );
+          setTeacherForOffering(null);
+          setSuccessMessage(`Successfully assigned ${teacherName} to ${targetSubject.name}.`);
+        },
+        onError: (err) => {
+          const msg = getApiErrorMessage(err, 'Failed to assign teacher to subject.');
+          setTeacherAssignmentError(msg);
+        },
+      }
+    );
   }
 
-  // Remove offering
-  function handleRemoveOffering(offeringId: string) {
-    setLocalOfferings((prev) => prev.filter((o) => o.id !== offeringId));
+  // Remove offering is not supported by the backend; keep as a safe no-op with clear error feedback
+  function handleRemoveOffering(_offeringId: string) {
+    setStatusUpdateError(
+      'Removing a subject from a class is not currently supported by the backend API.'
+    );
   }
 
   return (
@@ -975,10 +973,17 @@ export function SubjectsView() {
               disabled={deleteSubjectMutation.isPending}
               onClick={() => {
                 if (!subjectToDelete) return;
+                const deletedId = subjectToDelete.id;
+                const name = subjectToDelete.name;
                 setDeleteSubjectError(null);
-                deleteSubjectMutation.mutate(subjectToDelete.id, {
+                deleteSubjectMutation.mutate(deletedId, {
                   onSuccess: () => {
-                    const name = subjectToDelete.name;
+                    setLocalOfferings((prev) =>
+                      prev.filter((o) => o.subjectId !== deletedId)
+                    );
+                    if (detailSubject?.id === deletedId) {
+                      setDetailSubject(null);
+                    }
                     setSubjectToDelete(null);
                     setSuccessMessage(`Subject "${name}" was successfully deleted.`);
                   },

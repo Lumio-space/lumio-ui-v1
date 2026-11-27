@@ -11,6 +11,7 @@
  */
 
 import { apiClient } from '@/lib/api/axios';
+import { extractActiveClasses } from '../constants';
 import type { ClassRecord, CreateClassPayload } from '../types';
 
 const LEGACY_GRADE_MAP: Record<string, string> = {
@@ -34,19 +35,8 @@ export function normalizeGradeLevelForBackend(gradeLevel: string): string {
 }
 
 export async function fetchClasses(): Promise<ClassRecord[]> {
-  try {
-    const response = await apiClient.get<ClassRecord[] | { data: ClassRecord[] }>('/classes/');
-    const data = Array.isArray(response.data)
-      ? response.data
-      : (response.data as { data?: ClassRecord[] })?.data ?? [];
-    return data;
-  } catch (err: unknown) {
-    const axiosError = err as { response?: { status?: number } };
-    if (axiosError?.response?.status === 404 || axiosError?.response?.status === 403) {
-      return [];
-    }
-    throw err;
-  }
+  const response = await apiClient.get<ClassRecord[] | { data: ClassRecord[] }>('/classes/');
+  return extractActiveClasses<ClassRecord>(response.data);
 }
 
 export async function createClass(payload: CreateClassPayload): Promise<ClassRecord> {

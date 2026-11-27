@@ -43,6 +43,10 @@ describe('SettingsView', () => {
 
     expect(screen.getByText('Email notifications')).toBeInTheDocument();
     expect(screen.getByText('Push notifications')).toBeInTheDocument();
+    expect(screen.getByRole('note')).toHaveTextContent(
+      /local ui preferences only — notification settings are not saved to or synchronized with your account/i
+    );
+    expect(screen.getByRole('button', { name: /save changes/i })).toBeDisabled();
 
     const emailToggle = screen.getByRole('switch', { name: 'Email notifications' });
     expect(emailToggle).toHaveAttribute('aria-checked', 'true');

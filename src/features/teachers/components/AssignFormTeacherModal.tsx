@@ -21,6 +21,8 @@ import {
   GRADE_LEVEL_LABELS,
   composeClassName,
   DEPARTMENT_TONES,
+  extractActiveClasses,
+  sortClassesSerially,
 } from '@/features/classes/constants';
 import type { ClassRecord } from '@/features/classes/types';
 import { useAssignFormTeacher, useTeachers } from '../hooks';
@@ -50,12 +52,7 @@ export function AssignFormTeacherModal({
   const [formError, setFormError] = useState<string | null>(null);
 
   const classes: ClassRecord[] = useMemo(() => {
-    if (Array.isArray(rawClasses)) return rawClasses;
-    const anyData = rawClasses as { data?: unknown; classes?: unknown; items?: unknown };
-    if (Array.isArray(anyData?.data)) return anyData.data as ClassRecord[];
-    if (Array.isArray(anyData?.classes)) return anyData.classes as ClassRecord[];
-    if (Array.isArray(anyData?.items)) return anyData.items as ClassRecord[];
-    return [];
+    return sortClassesSerially(extractActiveClasses<ClassRecord>(rawClasses));
   }, [rawClasses]);
 
   const teachers: TeacherRecord[] = useMemo(() => {
@@ -195,7 +192,11 @@ export function AssignFormTeacherModal({
                 const tId = t.userId || t.teacherId || t.id;
                 const isCurrent = targetClass?.formTeacher === tId;
                 const leadsOtherClass = Boolean(
-                  t.classId && t.classId !== targetClass?.id
+                  (t.classId && t.classId !== targetClass?.id) ||
+                  (Array.isArray(t.classes) &&
+                    t.classes.some(
+                      (cl) => typeof cl !== 'string' && cl.isFormTeacher && cl.id !== targetClass?.id
+                    ))
                 );
                 const name = t.fullName || t.name || 'Teacher';
 
@@ -322,6 +323,10 @@ export function AssignFormTeacherModal({
             </div>
           )
         )}
+
+        <p className="text-xs text-slate-400">
+          To replace a class&rsquo;s Form Teacher, assign another active teacher. Removing a Form Teacher completely requires backend deassignment support.
+        </p>
       </div>
     </Modal>
   );

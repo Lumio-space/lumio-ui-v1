@@ -256,6 +256,56 @@ describe('ClassesView', () => {
   // ── Populated state — class list ───────────────────────────────────────────
 
   describe('class list', () => {
+    it('excludes soft-deleted classes while keeping active classes sorted', () => {
+      mockUseClasses.mockReturnValue({
+        data: [
+          {
+            id: 'cls-jss1b',
+            schoolId: 'school-1',
+            grade: 'JSS1',
+            section: 'B',
+            level: 'junior_secondary',
+            capacity: 30,
+            room: 102,
+            createdAt: '2026-01-01T00:00:00.000Z',
+            deletedAt: null,
+          },
+          {
+            id: 'cls-jss1a',
+            schoolId: 'school-1',
+            grade: 'JSS1',
+            section: 'A',
+            level: 'junior_secondary',
+            capacity: 30,
+            room: 101,
+            createdAt: '2026-01-01T00:00:00.000Z',
+            deletedAt: null,
+          },
+          {
+            id: 'cls-deleted',
+            schoolId: 'school-1',
+            grade: 'JSS2',
+            section: 'C',
+            level: 'junior_secondary',
+            capacity: 30,
+            room: 103,
+            createdAt: '2026-01-01T00:00:00.000Z',
+            deletedAt: '2026-02-01T00:00:00.000Z',
+          },
+        ],
+        isLoading: false,
+        isError: false,
+        error: null,
+        refetch: mockRefetch,
+      });
+
+      renderWithProviders(<ClassesView />);
+
+      expect(screen.getByText('JSS 1 A')).toBeInTheDocument();
+      expect(screen.getByText('JSS 1 B')).toBeInTheDocument();
+      expect(screen.queryByText('JSS 2 C')).not.toBeInTheDocument();
+    });
+
     it('renders a card for each class returned by the API', () => {
       stubClasses();
       renderWithProviders(<ClassesView />);

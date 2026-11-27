@@ -88,6 +88,20 @@ export function TeachingContextModal({
 
   const isSenior = classRecord.level?.toLowerCase().includes('senior');
   const configIncomplete = isSenior && (!subject.department || !subject.type);
+  const isFormTeacherUuid = Boolean(
+    classRecord.formTeacher &&
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+        classRecord.formTeacher
+      )
+  );
+  const formTeacherDisplayName =
+    classRecord.formTeacherName ||
+    classRecord.teacher ||
+    (classRecord.formTeacher && !isFormTeacherUuid
+      ? classRecord.formTeacher
+      : classRecord.formTeacher
+      ? 'Assigned'
+      : undefined);
 
   return (
     <>
@@ -164,11 +178,11 @@ export function TeachingContextModal({
                 )}
               </div>
               <div className="mt-2 flex items-center gap-2">
-                {classRecord.formTeacher ? (
+                {formTeacherDisplayName ? (
                   <>
-                    <Avatar name={classRecord.formTeacher} size="sm" />
+                    <Avatar name={formTeacherDisplayName} size="sm" />
                     <span className="truncate text-sm font-semibold text-slate-800">
-                      {classRecord.formTeacher}
+                      {formTeacherDisplayName}
                     </span>
                   </>
                 ) : (

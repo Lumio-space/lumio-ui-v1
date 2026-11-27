@@ -16,6 +16,7 @@ import {
   saveSubjectMetadata,
   getStoredMetadata,
   assignClassesToSubject,
+  deleteSubject,
   BACKEND_TO_SECTION_MAP,
 } from '../api/subjects.api';
 import { apiClient } from '@/lib/api/axios';
@@ -230,27 +231,30 @@ describe('subjects.api', () => {
   });
 
   describe('assignClassesToSubject', () => {
-    it('successfully calls POST /subjects/:id/classes and saves metadata on success', async () => {
+    it('successfully calls POST /subjects/:id/classes without persisting to localStorage', async () => {
       vi.mocked(apiClient.post).mockResolvedValueOnce({
         data: { success: true, classIds: ['cls-1', 'cls-2'] },
       });
 
       const res = await assignClassesToSubject('sub-1', ['cls-1', 'cls-2']);
+      expect(apiClient.post).toHaveBeenCalledWith('/subjects/sub-1/classes', {
+        classIds: ['cls-1', 'cls-2'],
+      });
       expect(res.success).toBe(true);
       expect(res.classIds).toEqual(['cls-1', 'cls-2']);
-      expect(getStoredMetadata()['sub-1']?.classIds).toEqual(['cls-1', 'cls-2']);
+      expect(getStoredMetadata()['sub-1']?.classIds).toBeUndefined();
     });
 
-    it('gracefully falls back and persists class assignments when backend returns 404', async () => {
+    it('surfaces 404 error without falling back to localStorage persistence', async () => {
       // Simulates the normalized Error returned by interceptor when route does not exist
       const notFoundError = new Error('Cannot POST /subjects/sub-1/classes');
       (notFoundError as Error & { status?: number }).status = 404;
       vi.mocked(apiClient.post).mockRejectedValueOnce(notFoundError);
 
-      const res = await assignClassesToSubject('sub-1', ['cls-10', 'cls-20']);
-      expect(res.success).toBe(true);
-      expect(res.classIds).toEqual(['cls-10', 'cls-20']);
-      expect(getStoredMetadata()['sub-1']?.classIds).toEqual(['cls-10', 'cls-20']);
+      await expect(
+        assignClassesToSubject('sub-1', ['cls-10', 'cls-20'])
+      ).rejects.toThrow('Cannot POST /subjects/sub-1/classes');
+      expect(getStoredMetadata()['sub-1']?.classIds).toBeUndefined();
     });
   });
 
@@ -292,6 +296,66 @@ describe('subjects.api', () => {
       expect(meta?.department).toBe('Science');
       expect(meta?.type).toBe('Compulsory');
       expect(meta?.status).toBe('Inactive');
+    });
+  });
+
+  describe('deleteSubject', () => {
+    it('calls DELETE /subjects/:id with no request body and removes only the deleted subject metadata', async () => {
+      saveSubjectMetadata('sub-del-1', {
+        section: 'Primary',
+        status: 'Active',
+        classIds: ['cls-1'],
+      });
+      saveSubjectMetadata('sub-keep-2', {
+        section: 'Senior Secondary',
+        department: 'Science',
+        type: 'Compulsory',
+        status: 'Active',
+        classIds: ['cls-2'],
+      });
+
+      vi.mocked(apiClient.delete).mockResolvedValueOnce({
+        data: { success: true, message: 'Subject deleted successfully' },
+      });
+
+      const result = await deleteSubject('sub-del-1');
+
+      expect(apiClient.delete).toHaveBeenCalledTimes(1);
+      expect(apiClient.delete).toHaveBeenCalledWith('/subjects/sub-del-1');
+      expect(vi.mocked(apiClient.delete).mock.calls[0]).toHaveLength(1);
+      expect(result).toEqual({ success: true, message: 'Subject deleted successfully' });
+
+      const stored = getStoredMetadata();
+      expect(stored['sub-del-1']).toBeUndefined();
+      expect(stored['sub-keep-2']).toEqual({
+        section: 'Senior Secondary',
+        department: 'Science',
+        type: 'Compulsory',
+        status: 'Active',
+        classIds: ['cls-2'],
+      });
+    });
+
+    it('preserves subject metadata and propagates error when deletion fails', async () => {
+      saveSubjectMetadata('sub-fail-1', {
+        section: 'Junior Secondary',
+        status: 'Active',
+        classIds: ['cls-3'],
+      });
+
+      const apiError = new Error('Subject not found in this school');
+      vi.mocked(apiClient.delete).mockRejectedValueOnce(apiError);
+
+      await expect(deleteSubject('sub-fail-1')).rejects.toThrow(
+        'Subject not found in this school'
+      );
+
+      expect(apiClient.delete).toHaveBeenCalledWith('/subjects/sub-fail-1');
+      expect(getStoredMetadata()['sub-fail-1']).toEqual({
+        section: 'Junior Secondary',
+        status: 'Active',
+        classIds: ['cls-3'],
+      });
     });
   });
 });

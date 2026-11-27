@@ -36,6 +36,7 @@ import {
   DEPARTMENTS,
   sectionHasDepartment,
   composeClassName,
+  extractActiveClasses,
 } from '../constants';
 import { useUpdateClass, useClasses } from '@/features/classes/hooks';
 import { createClassSchema, type CreateClassFormValues, type CreateClassFormInput } from '../schemas';
@@ -129,9 +130,7 @@ export function EditClassModal({
 
   useEffect(() => {
     if (!classRecord) return;
-    const allClasses = Array.isArray(existingClasses)
-      ? existingClasses
-      : (existingClasses as any)?.data || (existingClasses as any)?.classes || [];
+    const allClasses = extractActiveClasses<ClassRecord>(existingClasses);
 
     const otherClasses = allClasses.filter((c: ClassRecord) => c.id !== classRecord.id);
 

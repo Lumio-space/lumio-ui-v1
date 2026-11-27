@@ -78,13 +78,6 @@ function DropdownItem({ icon, danger, children, ...props }: DropdownItemProps) {
 
 function DropdownDivider() { return <div className="my-1 h-px bg-slate-100" /> }
 
-/* ── Notifications mock ───────────────────────────────────── */
-const NOTIFICATIONS = [
-  { id: 1, title: 'New admission request', desc: 'Grade 9 — pending review',  tone: 'gold'   as const, time: '5m' },
-  { id: 2, title: 'Attendance submitted',  desc: 'Grade 10-A by Dr. Hughes',  tone: 'purple' as const, time: '1h' },
-  { id: 3, title: 'Results published',     desc: 'Mid-term Grade 11-C',       tone: 'green'  as const, time: '3h' },
-]
-
 /* ── Component ────────────────────────────────────────────── */
 export function Topbar({ onMenuClickAction }: { onMenuClickAction: () => void }) {
   const router     = useRouter()
@@ -124,33 +117,30 @@ export function Topbar({ onMenuClickAction }: { onMenuClickAction: () => void })
         <Dropdown
           menuClassName="w-80"
           trigger={
-            <span className="relative inline-flex rounded-lg p-2 text-slate-500 hover:bg-slate-100">
+            <span
+              aria-label="Notifications"
+              className="relative inline-flex rounded-lg p-2 text-slate-500 hover:bg-slate-100"
+            >
               <BellIcon className="h-5 w-5" />
-              <span className="absolute right-1.5 top-1.5 flex h-2.5 w-2.5">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-gold-400 opacity-75" />
-                <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-gold-400 ring-2 ring-white" />
-              </span>
             </span>
           }
         >
           <div className="flex items-center justify-between px-3 py-2">
             <p className="text-sm font-bold text-slate-900">Notifications</p>
-            <span className="rounded-full bg-gold-100 px-2 py-0.5 text-xs font-bold text-gold-600">3 new</span>
+            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-500">
+              Unavailable
+            </span>
           </div>
           <div className="my-1 h-px bg-slate-100" />
-          {NOTIFICATIONS.map((n) => (
-            <button key={n.id} className="flex w-full items-start gap-3 rounded-lg px-3 py-2.5 text-left hover:bg-slate-50">
-              <span className={cn('mt-1.5 h-2 w-2 shrink-0 rounded-full',
-                n.tone === 'gold'   && 'bg-gold-400',
-                n.tone === 'purple' && 'bg-purple-500',
-                n.tone === 'green'  && 'bg-emerald-500')} />
-              <span className="min-w-0">
-                <span className="block text-sm font-semibold text-slate-800">{n.title}</span>
-                <span className="block truncate text-xs text-slate-500">{n.desc}</span>
-              </span>
-              <span className="ml-auto text-xs text-slate-400">{n.time}</span>
-            </button>
-          ))}
+          <div className="px-3 py-5 text-center">
+            <BellIcon className="mx-auto mb-2 h-6 w-6 text-slate-300" aria-hidden="true" />
+            <p className="text-sm font-semibold text-slate-700">
+              Notifications are not available yet
+            </p>
+            <p className="mt-1 text-xs leading-relaxed text-slate-500">
+              Live notification delivery is not yet supported by the backend service.
+            </p>
+          </div>
         </Dropdown>
 
         {/* Account */}

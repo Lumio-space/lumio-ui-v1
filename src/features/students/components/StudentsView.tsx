@@ -17,6 +17,7 @@ import { useClasses } from '@/features/classes/hooks';
 import {
   GRADE_LEVEL_LABELS,
   composeClassName,
+  extractActiveClasses,
 } from '@/features/classes/constants';
 import type { ClassRecord } from '@/features/classes/types';
 import { cn } from '@/lib/utils';
@@ -40,9 +41,10 @@ export function StudentsView() {
   const removeMutation = useRemoveStudent();
 
   const { data: rawClasses = [] } = useClasses();
-  const classesList: ClassRecord[] = Array.isArray(rawClasses)
-    ? rawClasses
-    : (rawClasses as any)?.data || (rawClasses as any)?.classes || [];
+  const classesList: ClassRecord[] = useMemo(
+    () => extractActiveClasses<ClassRecord>(rawClasses),
+    [rawClasses]
+  );
 
   const allStudents = useMemo(() => {
     return studentsResponse?.data || [];

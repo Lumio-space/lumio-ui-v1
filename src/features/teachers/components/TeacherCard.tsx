@@ -12,7 +12,7 @@ import { BookOpenIcon, StarIcon } from 'lucide-react';
 import { Avatar } from '@/components/shared/Avatar';
 import { Badge } from '@/components/shared/Badge';
 import { FormTeacherBadge } from './FormTeacherBadge';
-import { assignmentForTeacher } from '../constants';
+import { assignmentsForTeacher, dedupeTeacherSubjects } from '../constants';
 import type { TeacherRecord, TeacherInvitation } from '../types';
 
 interface TeacherCardProps {
@@ -29,8 +29,9 @@ export function TeacherCard({
   onClick,
 }: TeacherCardProps) {
   const teacherName = teacher.fullName || teacher.name || 'Teacher';
-  const assignment = assignmentForTeacher(invitations || [], teacher);
-  const subjects = teacher.subjects || [];
+  const assignments = assignmentsForTeacher(invitations || [], teacher);
+  const assignment = assignments[0] ?? null;
+  const subjects = dedupeTeacherSubjects(teacher.subjects);
   const status = teacher.status?.toLowerCase() === 'active' ? 'Active' : teacher.status;
   const rating = typeof teacher.rating === 'number' ? teacher.rating : null;
   const classesCount = (teacher.classes && teacher.classes.length > 0)
@@ -66,15 +67,19 @@ export function TeacherCard({
         <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
           Class assignment
         </p>
-        <div className="mt-1">
-          <FormTeacherBadge invite={assignment} />
+        <div className="mt-1 flex flex-wrap gap-1.5">
+          {assignments.length === 0 ? (
+            <FormTeacherBadge invite={null} />
+          ) : (
+            assignments.map((inv) => <FormTeacherBadge key={inv.id} invite={inv} />)
+          )}
         </div>
       </div>
 
       {subjects.length > 0 && (
         <div className="mt-3 flex flex-wrap gap-1.5">
           {subjects.map((s) => (
-            <Badge key={s.id || s.title} tone="purple">
+            <Badge key={s.key} tone="purple">
               {s.title}
             </Badge>
           ))}

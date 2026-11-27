@@ -8,7 +8,7 @@
  */
 
 import { useMemo, useState, useEffect } from 'react';
-import { CheckIcon, SearchIcon, LayersIcon, AlertCircleIcon } from 'lucide-react';
+import { CheckIcon, SearchIcon, LayersIcon, AlertCircleIcon, InfoIcon } from 'lucide-react';
 import { Modal } from '@/components/shared/Modal';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/shared/Badge';
@@ -16,7 +16,12 @@ import { cn } from '@/lib/utils';
 import { SCHOOL_SECTIONS, departmentTone } from '../constants';
 import type { SubjectRecord, SubjectOffering, Department } from '../types';
 import type { ClassRecord } from '@/features/classes/types';
-import { GRADE_LEVEL_LABELS, composeClassName } from '@/features/classes/constants';
+import {
+  GRADE_LEVEL_LABELS,
+  composeClassName,
+  extractActiveClasses,
+  sortClassesSerially,
+} from '@/features/classes/constants';
 
 interface AssignClassesModalProps {
   open: boolean;
@@ -61,7 +66,9 @@ export function AssignClassesModal({
 
   if (!subject) return null;
 
-  const filtered = classes.filter((c) => {
+  const activeClasses = sortClassesSerially(extractActiveClasses<ClassRecord>(classes));
+
+  const filtered = activeClasses.filter((c) => {
     const gradeLabel = GRADE_LEVEL_LABELS[c.grade] ?? c.grade;
     const name = composeClassName(gradeLabel, c.department, c.section);
     return name.toLowerCase().includes(query.trim().toLowerCase());
@@ -74,7 +81,7 @@ export function AssignClassesModal({
   }
 
   function toggleSection(sectionLabel: string) {
-    const sectionClasses = classes.filter((c) => {
+    const sectionClasses = activeClasses.filter((c) => {
       const normLevel = (c.level || '').toLowerCase().replace(/[\s_-]+/g, '');
       const normTarget = sectionLabel.toLowerCase().replace(/[\s_-]+/g, '');
       return normLevel === normTarget;
@@ -130,6 +137,16 @@ export function AssignClassesModal({
           <span>{errorMessage}</span>
         </div>
       )}
+
+      <div
+        role="note"
+        className="mb-4 flex items-start gap-2.5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800"
+      >
+        <InfoIcon className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" aria-hidden="true" />
+        <span>
+          Explicit subject-to-class assignment is not currently supported by the backend API (<code>POST /subjects/:id/classes</code>). Classes are matched automatically by section and department upon subject creation.
+        </span>
+      </div>
 
       <div className="relative mb-4">
         <SearchIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />

@@ -8,7 +8,7 @@
  * (Present, Late, Absent, Excused), Mark All Present action, and Save button.
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   CheckIcon,
   XIcon,
@@ -45,6 +45,23 @@ interface AttendanceRosterProps {
   readOnly?: boolean;
 }
 
+function areMarksEqual(
+  a: Record<string, AttendanceStatus>,
+  b: Record<string, AttendanceStatus>
+): boolean {
+  const keysA = Object.keys(a);
+  const keysB = Object.keys(b);
+  if (keysA.length !== keysB.length) return false;
+  return keysA.every((k) => a[k] === b[k]);
+}
+
+function getRosterSignature(students: StudentAttendanceRow[], date: string): string {
+  const rows = students
+    .map((s) => `${s.studentId}:${s.status ? String(s.status).toLowerCase() : 'null'}`)
+    .join('|');
+  return `${date}::${rows}`;
+}
+
 export function AttendanceRoster({
   students,
   date,
@@ -58,38 +75,68 @@ export function AttendanceRoster({
   const [marks, setMarks] = useState<Record<string, AttendanceStatus>>({});
   const [saved, setSaved] = useState(false);
 
+  const rosterSignature = useMemo(
+    () => getRosterSignature(students, date),
+    [students, date]
+  );
+  const lastSignatureRef = useRef<string | null>(null);
+  const onSummaryChangeRef = useRef(onSummaryChange);
+  const lastSummaryRef = useRef<ClassAttendanceSummary | null>(null);
+
   useEffect(() => {
+    onSummaryChangeRef.current = onSummaryChange;
+  }, [onSummaryChange]);
+
+  useEffect(() => {
+    if (lastSignatureRef.current === rosterSignature) {
+      return;
+    }
+    lastSignatureRef.current = rosterSignature;
+
     const initialMarks: Record<string, AttendanceStatus> = {};
     students.forEach((s) => {
       const normalized = s.status ? (String(s.status).toLowerCase() as AttendanceStatus) : null;
       initialMarks[s.studentId] = normalized || 'present';
     });
-    setMarks(initialMarks);
+    setMarks((prev) => (areMarksEqual(prev, initialMarks) ? prev : initialMarks));
     setSaved(false);
-  }, [students]);
+  }, [rosterSignature, students]);
 
   // Compute live summary from marks or students
-  useEffect(() => {
+  const summary = useMemo<ClassAttendanceSummary>(() => {
     if (readOnly) {
-      const summary: ClassAttendanceSummary = {
+      return {
         present: students.filter((s) => s.status?.toLowerCase() === 'present').length,
         absent: students.filter((s) => s.status?.toLowerCase() === 'absent').length,
         late: students.filter((s) => s.status?.toLowerCase() === 'late').length,
         excused: students.filter((s) => s.status?.toLowerCase() === 'excused').length,
         total: students.length,
       };
-      onSummaryChange?.(summary);
-      return;
     }
-    const summary: ClassAttendanceSummary = {
+    return {
       present: Object.values(marks).filter((m) => m === 'present').length,
       absent: Object.values(marks).filter((m) => m === 'absent').length,
       late: Object.values(marks).filter((m) => m === 'late').length,
       excused: Object.values(marks).filter((m) => m === 'excused').length,
       total: students.length,
     };
-    onSummaryChange?.(summary);
-  }, [marks, students, readOnly, onSummaryChange]);
+  }, [marks, students, readOnly]);
+
+  useEffect(() => {
+    const prev = lastSummaryRef.current;
+    if (
+      prev &&
+      prev.present === summary.present &&
+      prev.absent === summary.absent &&
+      prev.late === summary.late &&
+      prev.excused === summary.excused &&
+      prev.total === summary.total
+    ) {
+      return;
+    }
+    lastSummaryRef.current = summary;
+    onSummaryChangeRef.current?.(summary);
+  }, [summary]);
 
   function setMark(studentId: string, status: AttendanceStatus) {
     if (readOnly) return;

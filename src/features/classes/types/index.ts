@@ -34,6 +34,7 @@ export type ClassRecord = {
   subjects?:    string[];
   createdAt:    string;
   updatedAt?:   string;
+  deletedAt?:   string | null;
 };
 
 export type GradeLevel =

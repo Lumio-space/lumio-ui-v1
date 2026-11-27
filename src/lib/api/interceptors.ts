@@ -112,22 +112,40 @@ function clearAuthCookie(): void {
 
 /* ── Request: attach x-draft-token or Authorization header ─────── */
 
+const PUBLIC_AUTH_PATHS = [
+  '/auth/login',
+  '/auth/forgot-password',
+  '/auth/reset-password',
+  '/invites/accept',
+  '/invites/register',
+  '/invites/decline',
+  '/invites/validate',
+] as const;
+
+function extractPathname(url: string): string {
+  try {
+    const parsed = new URL(url, 'http://localhost');
+    return parsed.pathname.replace(/\/+$/, '') || '/';
+  } catch {
+    const withoutQuery = url.split(/[?#]/)[0] || '/';
+    const normalized = withoutQuery.startsWith('/') ? withoutQuery : `/${withoutQuery}`;
+    return normalized.replace(/\/+$/, '') || '/';
+  }
+}
+
 /**
  * Public authentication and invitation endpoints.
  * These endpoints never require, send, or validate existing session tokens,
  * and should never trigger session invalidation or login redirects.
+ *
+ * Uses exact segment matching on the URL pathname so protected routes like
+ * `/invites/accept-existing` are never matched by `/invites/accept`.
  */
 function isPublicAuthEndpoint(url?: string): boolean {
   if (!url || typeof url !== 'string') return false;
-  return (
-    url === '/auth/login' ||
-    url.startsWith('/auth/login') ||
-    url.startsWith('/auth/forgot-password') ||
-    url.startsWith('/auth/reset-password') ||
-    url.startsWith('/invites/accept') ||
-    url.startsWith('/invites/register') ||
-    url.startsWith('/invites/decline') ||
-    url.startsWith('/invites/validate')
+  const pathname = extractPathname(url);
+  return PUBLIC_AUTH_PATHS.some(
+    (publicPath) => pathname === publicPath || pathname.endsWith(publicPath)
   );
 }
 

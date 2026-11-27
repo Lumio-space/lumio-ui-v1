@@ -11,7 +11,7 @@ import { Button }      from '@/components/ui/button';
 import { useClasses, useDeleteClass } from '@/features/classes/hooks';
 import { useSubjects } from '@/features/subjects/hooks';
 import { useTeachers } from '@/features/teachers/hooks';
-import { GRADE_LEVEL_LABELS, SCHOOL_LEVEL_LABELS, composeClassName } from '../constants';
+import { GRADE_LEVEL_LABELS, SCHOOL_LEVEL_LABELS, composeClassName, extractActiveClasses } from '../constants';
 import { ClassCard }        from './ClassCard';
 import { Modal }            from '@/components/shared/Modal';
 import { ClassDetailModal } from './ClassDetailModal';
@@ -59,7 +59,8 @@ export function ClassesView() {
 
   const [selectedSectionKey, setSelectedSectionKey] = useState<string>('all');
 
-  const { data: classes, isLoading, isError, error, refetch } = useClasses();
+  const { data: rawClasses, isLoading, isError, error, refetch } = useClasses();
+  const classes = useMemo(() => extractActiveClasses<ClassRecord>(rawClasses), [rawClasses]);
   const { data: subjectsData } = useSubjects();
   const { data: teachersData } = useTeachers();
   const deleteClassMutation = useDeleteClass();

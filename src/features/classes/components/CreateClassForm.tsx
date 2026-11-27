@@ -28,11 +28,12 @@ import {
   DEPARTMENTS,
   sectionHasDepartment,
   composeClassName,
+  extractActiveClasses,
 } from '../constants';
 import { useCreateClass, useClasses } from '@/features/classes/hooks';
 import { normalizeGradeLevelForBackend } from '../api/classes.api';
 import { createClassSchema, type CreateClassFormValues, type CreateClassFormInput } from '../schemas';
-import type { SchoolLevel, Department, CreateClassPayload } from '../types';
+import type { ClassRecord, SchoolLevel, Department, CreateClassPayload } from '../types';
 
 interface CreateClassFormProps {
   /** Called after the class is successfully created. */
@@ -50,7 +51,8 @@ interface DuplicatePopUpInfo {
 
 export function CreateClassForm({ onSuccess, onCancel }: CreateClassFormProps) {
   const { mutate, isPending, error, reset: resetMutation } = useCreateClass();
-  const { data: existingClasses = [] } = useClasses();
+  const { data: rawExistingClasses = [] } = useClasses();
+  const existingClasses = extractActiveClasses<ClassRecord>(rawExistingClasses);
   const [duplicatePopUp, setDuplicatePopUp] = useState<DuplicatePopUpInfo | null>(null);
 
   const form = useForm<CreateClassFormInput, unknown, CreateClassFormValues>({

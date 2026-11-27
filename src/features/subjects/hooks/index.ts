@@ -58,6 +58,7 @@ export function useDeleteSubject() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: subjectQueryKeys.all });
       queryClient.invalidateQueries({ queryKey: classQueryKeys.all });
+      queryClient.invalidateQueries({ queryKey: ['teachers'] });
     },
   });
 }

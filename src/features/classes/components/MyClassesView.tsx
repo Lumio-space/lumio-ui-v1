@@ -10,7 +10,7 @@
  * communication solely to designated Form Teachers.
  */
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { motion } from 'framer-motion';
@@ -36,24 +36,43 @@ import { useClasses } from '@/features/classes/hooks';
 import { useSubjects } from '@/features/subjects/hooks';
 import { useStudents } from '@/features/students/hooks';
 import { useAuthStore } from '@/stores/auth.store';
-import { composeClassName, GRADE_LEVEL_LABELS } from '@/features/classes/constants';
+import {
+  composeClassName,
+  GRADE_LEVEL_LABELS,
+  extractActiveClasses,
+  sortClassesSerially,
+} from '@/features/classes/constants';
+import { isPermissionError, getApiErrorMessage } from '@/lib/api/error';
 import { TeachingContextModal } from './TeachingContextModal';
 import { MessageParentModal } from '@/features/parents/components/MessageParentModal';
 import type { ClassRecord } from '@/features/classes/types';
 import type { SubjectRecord } from '@/features/subjects/types';
 import type { StudentRecord } from '@/features/students/types';
 
+function isUuid(str: string | null | undefined): boolean {
+  if (!str) return false;
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+}
+
 export function MyClassesView() {
   const user = useAuthStore((s) => s.user);
   const searchParams = useSearchParams();
   const initialClassId = searchParams.get('classId');
 
-  const { data: rawClasses = [], isLoading: classesLoading, error } = useClasses();
-  const { data: rawSubjects = [] } = useSubjects();
+  const {
+    data: rawClasses = [],
+    isLoading: classesLoading,
+    error,
+    refetch: refetchClasses,
+  } = useClasses();
+  const {
+    data: rawSubjects = [],
+    isLoading: subjectsLoading,
+    error: subjectsError,
+  } = useSubjects();
 
   const classes: ClassRecord[] = useMemo(() => {
-    if (Array.isArray(rawClasses)) return rawClasses;
-    return (rawClasses as any)?.data || (rawClasses as any)?.classes || [];
+    return sortClassesSerially(extractActiveClasses<ClassRecord>(rawClasses));
   }, [rawClasses]);
 
   const subjects: SubjectRecord[] = useMemo(() => {
@@ -64,20 +83,42 @@ export function MyClassesView() {
   const [query, setQuery] = useState('');
   const [sectionFilter, setSectionFilter] = useState('all');
 
-  // Filter classes assigned to the authenticated teacher
+  const userId = user?.id;
+  const userTeacherId = user?.teacherId;
+  const userName = user?.name;
+  const userFullName = user?.fullName;
+
+  const teacherIds = useMemo(() => {
+    const ids = new Set<string>();
+    if (userId) ids.add(userId);
+    if (userTeacherId) ids.add(userTeacherId);
+    return ids;
+  }, [userId, userTeacherId]);
+
+  const teacherNames = useMemo(() => {
+    const names = new Set<string>();
+    if (userName) names.add(userName);
+    if (userFullName) names.add(userFullName);
+    return names;
+  }, [userName, userFullName]);
+
+  // Filter classes assigned to the authenticated teacher (without fabricating classes)
   const myClasses = useMemo(() => {
     if (!user) return [];
-    return classes.filter((c: ClassRecord) => {
+    const matched = classes.filter((c: ClassRecord) => {
       const matchesDirectClass = Boolean(user.classId && c.id === user.classId);
-      const matchesFormTeacherId = Boolean(user.id && c.formTeacher === user.id);
-      const matchesFormTeacherName = Boolean(user.name && c.formTeacher === user.name);
-      const matchesTeacherId = Boolean(user.id && c.teacher && c.teacher === user.id);
-      const matchesTeacherName = Boolean(user.name && c.teacher && c.teacher === user.name);
+      const matchesFormTeacherId = Boolean(c.formTeacher && teacherIds.has(c.formTeacher));
+      const matchesFormTeacherName = Boolean(
+        (c.formTeacher && teacherNames.has(c.formTeacher)) ||
+        (c.formTeacherName && teacherNames.has(c.formTeacherName))
+      );
+      const matchesTeacherId = Boolean(c.teacher && teacherIds.has(c.teacher));
+      const matchesTeacherName = Boolean(c.teacher && teacherNames.has(c.teacher));
       const matchesSubjectOffering = subjects.some((s) =>
         s.offerings?.some(
           (o) =>
             o.classId === c.id &&
-            ((user.id && o.teacherIds?.includes(user.id)) || false)
+            o.teacherIds?.some((tid) => teacherIds.has(tid))
         )
       );
 
@@ -90,7 +131,8 @@ export function MyClassesView() {
         matchesSubjectOffering
       );
     });
-  }, [classes, subjects, user]);
+    return sortClassesSerially(matched);
+  }, [classes, subjects, user, teacherIds, teacherNames]);
 
   const [openClass, setOpenClass] = useState<ClassRecord | null>(() => {
     if (initialClassId) {
@@ -98,6 +140,13 @@ export function MyClassesView() {
     }
     return null;
   });
+
+  useEffect(() => {
+    if (initialClassId && !openClass && myClasses.length > 0) {
+      const target = myClasses.find((c) => c.id === initialClassId);
+      if (target) setOpenClass(target);
+    }
+  }, [initialClassId, openClass, myClasses]);
 
   const [selectedContext, setSelectedContext] = useState<{
     subject: SubjectRecord;
@@ -130,26 +179,21 @@ export function MyClassesView() {
     });
   }, [myClasses, query, sectionFilter]);
 
-  // Subjects taught by current teacher in openClass
+  // Subjects taught by current teacher in openClass (explicit offerings only)
   const mySubjectsInOpenClass = useMemo(() => {
     if (!openClass || !user) return [];
-    return subjects.filter((s) => {
-      const matchesOffering = s.offerings?.some(
-        (o) =>
-          o.classId === openClass.id &&
-          ((user.id && o.teacherIds?.includes(user.id)) ||
-            (user.classId && o.classId === user.classId))
-      );
-      const matchesClass = Boolean(
-        user.classId &&
-          user.classId === openClass.id &&
-          s.classIds?.includes(openClass.id)
-      );
-      return matchesOffering || matchesClass;
-    });
+    return subjects.filter((s) =>
+      Boolean(
+        s.offerings?.some(
+          (o) =>
+            o.classId === openClass.id &&
+            Boolean(user.id && o.teacherIds?.includes(user.id))
+        )
+      )
+    );
   }, [openClass, subjects, user]);
 
-  if (classesLoading) {
+  if (classesLoading || subjectsLoading) {
     return (
       <div className="space-y-6">
         <PageHeader
@@ -169,8 +213,17 @@ export function MyClassesView() {
   if (openClass) {
     const isFormTeacher =
       openClass.id === user?.classId ||
-      openClass.formTeacher === user?.name ||
-      openClass.formTeacher === user?.id;
+      Boolean(openClass.formTeacher && (teacherIds.has(openClass.formTeacher) || teacherNames.has(openClass.formTeacher))) ||
+      Boolean(openClass.formTeacherName && teacherNames.has(openClass.formTeacherName));
+
+    const formTeacherDisplayName =
+      openClass.formTeacherName ||
+      openClass.teacher ||
+      (openClass.formTeacher && !isUuid(openClass.formTeacher)
+        ? openClass.formTeacher
+        : openClass.formTeacher
+        ? 'Assigned'
+        : undefined);
 
     const gradeLabel = GRADE_LEVEL_LABELS[openClass.grade] ?? openClass.grade;
     const dept =
@@ -248,11 +301,11 @@ export function MyClassesView() {
             <span className="text-xs font-bold uppercase tracking-wide text-slate-400">
               Form Teacher:
             </span>
-            {openClass.formTeacher ? (
+            {formTeacherDisplayName ? (
               <span className="flex items-center gap-2">
-                <Avatar name={openClass.formTeacher} size="xs" />
+                <Avatar name={formTeacherDisplayName} size="xs" />
                 <span className="text-xs font-semibold text-slate-800">
-                  {openClass.formTeacher}
+                  {formTeacherDisplayName}
                 </span>
               </span>
             ) : (
@@ -431,6 +484,9 @@ export function MyClassesView() {
   }
 
   /* ------------------- Class List View ------------------- */
+  const isClassesForbidden = isPermissionError(error);
+  const isSubjectsForbidden = isPermissionError(subjectsError);
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -438,13 +494,52 @@ export function MyClassesView() {
         description={`The classes ${user?.name ?? 'you'} teach in. Access is granted per assigned class.`}
       />
 
-      {error && (
-        <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
-          Failed to load assigned classes. Please refresh or try again later.
-        </div>
-      )}
+      {error ? (
+        <Card className={isClassesForbidden ? 'border-amber-200 bg-amber-50/70' : 'border-rose-200 bg-rose-50'}>
+          <CardContent className="flex flex-col items-center justify-center p-10 text-center">
+            <div
+              className={`flex h-12 w-12 items-center justify-center rounded-2xl mb-4 ${
+                isClassesForbidden ? 'bg-amber-100 text-amber-700' : 'bg-rose-100 text-rose-700'
+              }`}
+            >
+              <LockIcon className="h-6 w-6" />
+            </div>
+            <h3 className={`font-display text-base font-bold ${isClassesForbidden ? 'text-amber-950' : 'text-rose-900'}`}>
+              {isClassesForbidden
+                ? 'Teaching Classes Unavailable'
+                : 'Failed to load classes'}
+            </h3>
+            <p className={`mt-1 max-w-md text-xs leading-relaxed ${isClassesForbidden ? 'text-amber-800' : 'text-rose-700'}`}>
+              {isClassesForbidden
+                ? 'Your teacher account does not currently have permission to access the school class directory. A dedicated teacher-scoped classes endpoint is required from the backend to display all your form and subject-teaching classes.'
+                : getApiErrorMessage(error, 'Failed to load assigned classes. Please try again.')}
+            </p>
+            {!isClassesForbidden && refetchClasses && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => refetchClasses()}
+                className="mt-4"
+              >
+                Try again
+              </Button>
+            )}
+          </CardContent>
+        </Card>
+      ) : (
+        <>
+          {subjectsError && (
+            <div
+              role="alert"
+              className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800"
+            >
+              {isSubjectsForbidden
+                ? 'Subject-teaching assignments could not be loaded because your role lacks access to the subjects directory. Only form-teacher classes returned by the classes API can be shown.'
+                : `Unable to load subject assignments: ${getApiErrorMessage(subjectsError, 'Request failed.')}`}
+            </div>
+          )}
 
-      {myClasses.length === 0 ? (
+          {myClasses.length === 0 ? (
         <Card className="border-slate-100 bg-white">
           <CardContent className="flex flex-col items-center justify-center p-12 text-center">
             <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-700 mb-4">
@@ -555,6 +650,8 @@ export function MyClassesView() {
             </div>
           )}
         </>
+      )}
+      </>
       )}
     </div>
   );

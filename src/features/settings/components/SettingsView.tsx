@@ -136,6 +136,7 @@ export function SettingsView() {
             leftIcon={saved ? <CheckIcon className="h-4 w-4" /> : undefined}
             variant={saved ? 'secondary' : 'default'}
             onClick={handleSave}
+            disabled={tab === 'notifications'}
           >
             {saved ? 'Saved' : 'Save changes'}
           </Button>
@@ -359,7 +360,16 @@ export function SettingsView() {
 
           {/* Notifications Tab */}
           {tab === 'notifications' && (
-            <div className="max-w-2xl space-y-2">
+            <div className="max-w-2xl space-y-3">
+              <div
+                role="note"
+                className="flex items-start gap-2.5 rounded-xl border border-amber-200 bg-amber-50 p-3.5 text-xs text-amber-900"
+              >
+                <InfoIcon className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" aria-hidden="true" />
+                <p>
+                  Local UI preferences only — notification settings are not saved to or synchronized with your account because the backend notification service is not yet implemented.
+                </p>
+              </div>
               {[
                 {
                   key: 'email' as const,

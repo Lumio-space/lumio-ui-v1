@@ -127,3 +127,98 @@ export const classQueryKeys = {
   lists: () => [...classQueryKeys.all, 'list'] as const,
 };
 
+const LEVEL_SORT_ORDER: Record<string, number> = {
+  nursery: 0,
+  primary: 1,
+  junior_secondary: 2,
+  juniorsecondary: 2,
+  senior_secondary: 3,
+  seniorsecondary: 3,
+};
+
+function normalizeLevelSortKey(level?: string | null, grade?: string | null): number {
+  const rawLevel = (level || '').toLowerCase().replace(/[\s_-]+/g, '');
+  if (rawLevel && rawLevel in LEVEL_SORT_ORDER) {
+    return LEVEL_SORT_ORDER[rawLevel];
+  }
+  const g = (grade || '').toLowerCase().replace(/[\s_-]+/g, '');
+  if (g.startsWith('nursery') || g.includes('kindergarten')) return 0;
+  if (g.startsWith('primary') || g.includes('basic')) return 1;
+  if (g.startsWith('jss') || g.includes('junior')) return 2;
+  if (g.startsWith('sss') || g.startsWith('ss') || g.includes('senior')) return 3;
+  return 99;
+}
+
+/**
+ * Returns true if a class record is active (not soft-deleted).
+ */
+export function isActiveClass(cls: { deletedAt?: string | null } | null | undefined): boolean {
+  if (!cls) return false;
+  return cls.deletedAt === undefined || cls.deletedAt === null || cls.deletedAt === '';
+}
+
+/**
+ * Filters out soft-deleted class records (where deletedAt is non-null).
+ */
+export function filterActiveClasses<T extends { deletedAt?: string | null }>(items: T[]): T[] {
+  return items.filter(isActiveClass);
+}
+
+/**
+ * Normalizes any supported class list response shape (array, { data }, { classes }, { items })
+ * and excludes soft-deleted class records.
+ */
+export function extractActiveClasses<T extends { deletedAt?: string | null }>(raw: unknown): T[] {
+  let list: T[] = [];
+  if (Array.isArray(raw)) {
+    list = raw as T[];
+  } else if (raw && typeof raw === 'object') {
+    const wrapped = raw as { data?: unknown; classes?: unknown; items?: unknown };
+    if (Array.isArray(wrapped.data)) list = wrapped.data as T[];
+    else if (Array.isArray(wrapped.classes)) list = wrapped.classes as T[];
+    else if (Array.isArray(wrapped.items)) list = wrapped.items as T[];
+  }
+  return filterActiveClasses(list);
+}
+
+/**
+ * Sorts classes deterministically by:
+ *   1. School level (Nursery → Primary → Junior Secondary → Senior Secondary)
+ *   2. Numeric grade (e.g. JSS 1 → JSS 2 → JSS 3)
+ *   3. Department where applicable (excluding 'Nill')
+ *   4. Alphabetical section/arm (A → B → C)
+ */
+export function sortClassesSerially<
+  T extends {
+    id?: string;
+    level?: string | null;
+    grade?: string | null;
+    department?: string | null;
+    section?: string | null;
+  },
+>(items: T[]): T[] {
+  return [...items].sort((a, b) => {
+    const levelDiff =
+      normalizeLevelSortKey(a.level, a.grade) - normalizeLevelSortKey(b.level, b.grade);
+    if (levelDiff !== 0) return levelDiff;
+
+    const gradeA = (a.grade ? GRADE_LEVEL_LABELS[a.grade] ?? a.grade : '').trim();
+    const gradeB = (b.grade ? GRADE_LEVEL_LABELS[b.grade] ?? b.grade : '').trim();
+    const gradeDiff = gradeA.localeCompare(gradeB, undefined, { numeric: true, sensitivity: 'base' });
+    if (gradeDiff !== 0) return gradeDiff;
+
+    const deptA = a.department && a.department !== 'Nill' ? a.department : '';
+    const deptB = b.department && b.department !== 'Nill' ? b.department : '';
+    const deptDiff = deptA.localeCompare(deptB, undefined, { sensitivity: 'base' });
+    if (deptDiff !== 0) return deptDiff;
+
+    const secDiff = (a.section || '').localeCompare(b.section || '', undefined, {
+      numeric: true,
+      sensitivity: 'base',
+    });
+    if (secDiff !== 0) return secDiff;
+
+    return (a.id || '').localeCompare(b.id || '');
+  });
+}
+

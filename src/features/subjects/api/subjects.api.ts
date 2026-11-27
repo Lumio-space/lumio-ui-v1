@@ -8,8 +8,8 @@
  *   POST   /subjects                         → createSubject ({ name, classIds, code, section, ... })
  *   PATCH  /subjects/:id                     → updateSubject
  *   DELETE /subjects/:id                     → deleteSubject
- *   POST   /subjects/:id/classes             → assignClassesToSubject ({ classIds })
- *   POST   /teachers/:teacherId/subjects     → assignSubjectToTeacher ({ classId, subjectId })
+ *   POST   /subjects/:id/classes             → assignClassesToSubject ({ classIds }) (unsupported in current backend)
+ *   POST   /teachers/assign-subject-to-teacher → assignTeacherToSubject ({ teacherId, classId, subjectId })
  *
  * Error handling is managed by the Axios response interceptor.
  */
@@ -100,6 +100,19 @@ export function saveSubjectMetadata(id: string, meta: SubjectLocalMeta) {
   }
 }
 
+export function removeSubjectMetadata(id: string) {
+  if (typeof window === 'undefined') return;
+  try {
+    const all = getStoredMetadata();
+    if (id in all) {
+      delete all[id];
+      localStorage.setItem(METADATA_STORAGE_KEY, JSON.stringify(all));
+    }
+  } catch {
+    // Ignore storage write errors in restricted environments
+  }
+}
+
 export function mapDepartmentToBackend(dept?: string): string | undefined {
   if (!dept) return undefined;
   if (dept === 'All departments' || dept === 'All') return 'All';
@@ -154,21 +167,11 @@ export function normalizeSubject(item: BackendSubjectItem): SubjectRecord {
 }
 
 export async function fetchSubjects(): Promise<SubjectRecord[]> {
-  try {
-    const response = await apiClient.get<BackendSubjectItem[] | { data: BackendSubjectItem[] }>('/subjects');
-    const rawData = Array.isArray(response.data)
-      ? response.data
-      : (response.data as { data?: BackendSubjectItem[] })?.data ?? [];
-    return rawData.map(normalizeSubject);
-  } catch (err: unknown) {
-    // If backend GET /subjects endpoint returns 404 or 403 Forbidden (for roles without VIEW_SUBJECTS),
-    // return an empty array to prevent query error cascades and UI freezing.
-    const axiosError = err as { response?: { status?: number } };
-    if (axiosError?.response?.status === 404 || axiosError?.response?.status === 403) {
-      return [];
-    }
-    throw err;
-  }
+  const response = await apiClient.get<BackendSubjectItem[] | { data: BackendSubjectItem[] }>('/subjects');
+  const rawData = Array.isArray(response.data)
+    ? response.data
+    : (response.data as { data?: BackendSubjectItem[] })?.data ?? [];
+  return rawData.map(normalizeSubject);
 }
 
 export async function createSubject(
@@ -295,9 +298,10 @@ export async function updateSubject(
 }
 
 export async function deleteSubject(id: string): Promise<{ success: boolean; message?: string }> {
-  const response = await apiClient.delete<{ success: boolean; message?: string }>('/subjects', {
-    data: { subjectId: id },
-  });
+  const response = await apiClient.delete<{ success: boolean; message?: string }>(
+    `/subjects/${id}`
+  );
+  removeSubjectMetadata(id);
   return response.data;
 }
 
@@ -305,29 +309,11 @@ export async function assignClassesToSubject(
   subjectId: string,
   classIds: string[]
 ): Promise<{ success: boolean; classIds: string[] }> {
-  try {
-    const response = await apiClient.post<{ success: boolean; classIds: string[] }>(
-      `/subjects/${subjectId}/classes`,
-      { classIds }
-    );
-    saveSubjectMetadata(subjectId, { classIds });
-    return response.data;
-  } catch (err: unknown) {
-    const errorObj = err as { response?: { status?: number }; status?: number; message?: string };
-    const is404 =
-      errorObj?.response?.status === 404 ||
-      errorObj?.status === 404 ||
-      (err instanceof Error &&
-        (err.message.includes('404') ||
-          err.message.includes('Cannot POST') ||
-          /not found/i.test(err.message)));
-
-    if (is404) {
-      saveSubjectMetadata(subjectId, { classIds });
-      return { success: true, classIds };
-    }
-    throw err;
-  }
+  const response = await apiClient.post<{ success: boolean; classIds: string[] }>(
+    `/subjects/${subjectId}/classes`,
+    { classIds }
+  );
+  return response.data;
 }
 
 export async function assignTeacherToSubject(

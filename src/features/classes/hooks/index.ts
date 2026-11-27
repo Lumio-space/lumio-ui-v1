@@ -2,19 +2,22 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
-import { classQueryKeys }            from '../constants';
+import { classQueryKeys, filterActiveClasses } from '../constants';
 import { subjectQueryKeys }          from '@/features/subjects/constants';
+import { teacherQueryKeys }          from '@/features/teachers/constants';
+import { adminDashboardQueryKeys }   from '@/features/dashboard/hooks/useAdminDashboard';
 import { fetchClasses, createClass, deleteClass, updateClass } from '../api/classes.api';
 import type { CreateClassPayload, UpdateClassPayload }   from '../types';
 
 /**
- * Query hook — fetches the list of classes for the current school.
+ * Query hook — fetches the list of active classes for the current school.
  * The school context is resolved server-side via @CurrentMembership.
  */
 export function useClasses() {
   return useQuery({
     queryKey: classQueryKeys.lists(),
     queryFn:  fetchClasses,
+    select:   filterActiveClasses,
     staleTime: 0,
   });
 }
@@ -67,6 +70,8 @@ export function useDeleteClass() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: classQueryKeys.all });
       queryClient.invalidateQueries({ queryKey: subjectQueryKeys.all });
+      queryClient.invalidateQueries({ queryKey: teacherQueryKeys.all });
+      queryClient.invalidateQueries({ queryKey: adminDashboardQueryKeys.all });
     },
   });
 }

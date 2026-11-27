@@ -4,8 +4,18 @@
  * Query keys, filter options, status tones, and helper functions migrated from lumio-react.
  */
 
-import { GRADE_LEVEL_LABELS, composeClassName } from '@/features/classes/constants';
-import type { InviteStatus, TeacherInvitation, TeacherClassAssignment } from '../types';
+import {
+  GRADE_LEVEL_LABELS,
+  composeClassName,
+  isActiveClass,
+  sortClassesSerially,
+} from '@/features/classes/constants';
+import type {
+  InviteStatus,
+  TeacherInvitation,
+  TeacherClassAssignment,
+  TeacherSubject,
+} from '../types';
 
 export const teacherQueryKeys = {
   all: ['teachers'] as const,
@@ -78,12 +88,12 @@ export function formTeacherForClass(
   return null;
 }
 
-/** The class a given teacher is form teacher of (or invited to lead) */
-export function assignmentForTeacher(
+/** All form-teacher class assignments (or pending invite) for a given teacher */
+export function assignmentsForTeacher(
   list: TeacherInvitation[],
   teacher: string | { name?: string; fullName?: string; email?: string; userId?: string; classId?: string | null; classes?: Array<string | TeacherClassAssignment> }
-): TeacherInvitation | null {
-  if (!teacher) return null;
+): TeacherInvitation[] {
+  if (!teacher) return [];
   const teacherObj = typeof teacher === 'string' ? { name: teacher } : teacher;
   const name = teacherObj.fullName || teacherObj.name;
   const email = teacherObj.email?.toLowerCase();
@@ -93,40 +103,105 @@ export function assignmentForTeacher(
   // 1. Source of truth for active teachers: teacher.classes and its isFormTeacher property
   const classesList = teacherObj.classes;
   if (Array.isArray(classesList)) {
-    const formClass = classesList.find(
-      (c): c is TeacherClassAssignment => typeof c === 'object' && c !== null && Boolean(c.isFormTeacher)
+    const uniqueFormClasses = Array.from(
+      new Map(
+        classesList
+          .filter(
+            (c): c is TeacherClassAssignment =>
+              typeof c === 'object' &&
+              c !== null &&
+              Boolean(c.isFormTeacher) &&
+              isActiveClass(c as { deletedAt?: string | null })
+          )
+          .map((c) => [c.id, c])
+      ).values()
     );
-    if (formClass) {
-      const gradeLabel = formClass.grade ? (GRADE_LEVEL_LABELS[formClass.grade] ?? formClass.grade) : '';
-      const dept = formClass.department && formClass.department !== 'Nill' ? formClass.department : undefined;
-      const className = composeClassName(gradeLabel, dept, formClass.section) || 'Assigned Class';
-      return {
-        id: `form-teacher-${formClass.id}`,
-        classId: formClass.id,
-        className,
-        status: 'Accepted',
-        sent: '',
-        expires: '',
-        email: email ?? '',
-        teacherId: userId,
-        name,
-      };
+    const formClasses = sortClassesSerially(uniqueFormClasses);
+    if (formClasses.length > 0) {
+      return formClasses.map((formClass) => {
+        const gradeLabel = formClass.grade ? (GRADE_LEVEL_LABELS[formClass.grade] ?? formClass.grade) : '';
+        const dept = formClass.department && formClass.department !== 'Nill' ? formClass.department : undefined;
+        const className = composeClassName(gradeLabel, dept, formClass.section) || 'Assigned Class';
+        return {
+          id: `form-teacher-${formClass.id}`,
+          classId: formClass.id,
+          className,
+          status: 'Accepted' as const,
+          sent: '',
+          expires: '',
+          email: email ?? '',
+          teacherId: userId,
+          name,
+        };
+      });
     }
   }
 
   // 2. Retain invitation-based assignment info ONLY for pending invitations
   if (Array.isArray(list)) {
-    const pending = list.find(
+    const pending = list.filter(
       (i) =>
         i.status === 'Pending' &&
         ((classId && i.classId === classId) ||
          (email && i.email.toLowerCase() === email) ||
          (name && i.name?.toLowerCase() === name.toLowerCase()))
     );
-    if (pending) return pending;
+    if (pending.length > 0) return pending;
   }
 
-  return null;
+  return [];
+}
+
+/** The primary class a given teacher is form teacher of (or invited to lead) */
+export function assignmentForTeacher(
+  list: TeacherInvitation[],
+  teacher: string | { name?: string; fullName?: string; email?: string; userId?: string; classId?: string | null; classes?: Array<string | TeacherClassAssignment> }
+): TeacherInvitation | null {
+  return assignmentsForTeacher(list, teacher)[0] ?? null;
+}
+
+export interface DeduplicatedTeacherSubject {
+  key: string;
+  id: string;
+  title: string;
+  classIds: string[];
+}
+
+export function dedupeTeacherSubjects(
+  subjects?: TeacherSubject[] | null
+): DeduplicatedTeacherSubject[] {
+  if (!subjects || subjects.length === 0) return [];
+
+  const deduped = new Map<string, DeduplicatedTeacherSubject>();
+
+  for (const subject of subjects) {
+    const id = (subject.id || '').trim();
+    const title = (subject.title || '').trim();
+    if (!id && !title) continue;
+
+    const normalizedTitle = title.toLowerCase();
+    const key = id ? `id:${id}` : `title:${normalizedTitle}`;
+    const existing = deduped.get(key);
+
+    if (existing) {
+      if (!existing.title && title) {
+        existing.title = title;
+      }
+      if (subject.classId && !existing.classIds.includes(subject.classId)) {
+        existing.classIds.push(subject.classId);
+      }
+      continue;
+    }
+
+    deduped.set(key, {
+      key,
+      id,
+      title: title || id,
+      classIds: subject.classId ? [subject.classId] : [],
+    });
+  }
+
+  return Array.from(deduped.values());
 }
 
 export const DEPARTMENTS = ['Sciences', 'Humanities', 'Technology', 'Arts'];

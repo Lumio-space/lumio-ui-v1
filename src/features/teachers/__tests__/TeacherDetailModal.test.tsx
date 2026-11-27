@@ -210,4 +210,95 @@ describe('TeacherDetailModal (Active Form Teacher & Visibility)', () => {
 
     expect(mockToggleStatus).toHaveBeenCalledWith(baseTeacher);
   });
+
+  it('deduplicates header subject badges while preserving class-level subject assignments', () => {
+    const teacherWithMultiClassSubjects: TeacherRecord = {
+      ...baseTeacher,
+      classes: [
+        { id: 'cls-1', grade: 'JSS1', section: 'A', level: 'junior_secondary', isFormTeacher: false },
+        { id: 'cls-2', grade: 'JSS2', section: 'B', level: 'junior_secondary', isFormTeacher: false },
+      ],
+      subjects: [
+        { id: 'sub-math', title: 'Mathematics', classId: 'cls-1' },
+        { id: 'sub-math', title: 'Mathematics', classId: 'cls-2' },
+        { id: 'sub-cs', title: 'Computer Science', classId: 'cls-1' },
+      ],
+    };
+
+    renderWithProviders(
+      <TeacherDetailModal
+        teacher={teacherWithMultiClassSubjects}
+        invitations={[]}
+        onClose={vi.fn()}
+      />
+    );
+
+    // Header badge + breakdown row = 2 occurrences total (not 3)
+    expect(screen.getAllByText('Mathematics')).toHaveLength(2);
+    expect(screen.getByText('Subject assignments')).toBeInTheDocument();
+    expect(screen.getByText('JSS 1 A, JSS 2 B')).toBeInTheDocument();
+  });
+
+  it('sorts teaching classes serially, deduplicates repeated classes, and displays all form teacher assignments', () => {
+    const teacherWithMultiAssignments: TeacherRecord = {
+      ...baseTeacher,
+      classes: [
+        {
+          id: 'cls-sss1',
+          grade: 'SSS1',
+          section: 'A',
+          level: 'senior_secondary',
+          department: 'Science',
+          isFormTeacher: false,
+        },
+        {
+          id: 'cls-jss1b',
+          grade: 'JSS1',
+          section: 'B',
+          level: 'junior_secondary',
+          isFormTeacher: true,
+        },
+        {
+          id: 'cls-jss1a',
+          grade: 'JSS1',
+          section: 'A',
+          level: 'junior_secondary',
+          isFormTeacher: true,
+        },
+        {
+          id: 'cls-jss1a',
+          grade: 'JSS1',
+          section: 'A',
+          level: 'junior_secondary',
+          isFormTeacher: true,
+        },
+      ],
+      subjects: [
+        { id: 'sub-mth', title: 'Mathematics', classId: 'cls-jss1b' },
+        { id: 'sub-mth', title: 'Mathematics', classId: 'cls-jss1a' },
+      ],
+    };
+
+    renderWithProviders(
+      <TeacherDetailModal
+        teacher={teacherWithMultiAssignments}
+        invitations={[]}
+        onClose={vi.fn()}
+      />
+    );
+
+    expect(screen.getAllByText('Active — Form Teacher')).toHaveLength(2);
+    expect(screen.getAllByText('Mathematics')).toHaveLength(2);
+    expect(screen.getByText('JSS 1 A, JSS 1 B')).toBeInTheDocument();
+
+    const classBadges = screen.getAllByText(/^(JSS 1|SSS 1 Science)/);
+    const teachingTexts = classBadges
+      .map((el) => el.textContent || '')
+      .filter((txt) => txt.includes('· Form Teacher') || txt === 'SSS 1 Science A');
+    expect(teachingTexts).toEqual([
+      'JSS 1 A · Form Teacher',
+      'JSS 1 B · Form Teacher',
+      'SSS 1 Science A',
+    ]);
+  });
 });

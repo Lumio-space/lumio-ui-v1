@@ -400,9 +400,11 @@ export function SubjectDetailModal({
                                 <DropdownItem
                                   icon={<Trash2Icon className="h-4 w-4" />}
                                   danger
+                                  disabled
+                                  title="Removing a subject from a class is not currently supported by the backend"
                                   onClick={() => onRemoveOffering(o.id)}
                                 >
-                                  Remove from class
+                                  Remove from class (Unavailable)
                                 </DropdownItem>
                               </Dropdown>
                             </div>

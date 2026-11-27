@@ -325,4 +325,135 @@ describe('AttendancePage', () => {
     expect(screen.getByText('Amelia Bennett')).toBeInTheDocument();
     expect(screen.queryByLabelText('Select class')).not.toBeInTheDocument();
   });
+
+  it('handles teacher opening Attendance with no available classes without render loops', () => {
+    useAuthStore.setState({
+      role: 'teacher',
+      user: {
+        id: 'teacher-1',
+        name: 'Teacher User',
+        email: 'teacher@example.com',
+        role: 'TEACHER',
+      },
+    });
+    mockUseClasses.mockReturnValue({
+      data: [],
+      isLoading: false,
+      error: null,
+    });
+    mockUseClassAttendance.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+
+    const { unmount } = renderWithProviders(<AttendancePage />);
+
+    expect(screen.getByText('No Classes Available')).toBeInTheDocument();
+    expect(screen.queryByText('Class Attendance Register')).not.toBeInTheDocument();
+    expect(() => unmount()).not.toThrow();
+  });
+
+  it('does not mount AttendanceRoster prematurely while classes are loading', () => {
+    useAuthStore.setState({
+      role: 'teacher',
+      user: {
+        id: 'teacher-1',
+        name: 'Teacher User',
+        email: 'teacher@example.com',
+        role: 'TEACHER',
+      },
+    });
+    mockUseClasses.mockReturnValue({
+      data: undefined,
+      isLoading: true,
+      error: null,
+    });
+    mockUseClassAttendance.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+
+    renderWithProviders(<AttendancePage />);
+
+    expect(screen.getByText('Loading student roster…')).toBeInTheDocument();
+    expect(screen.queryByText('Class Attendance Register')).not.toBeInTheDocument();
+  });
+
+  it('handles empty student roster cleanly without infinite updates', () => {
+    useAuthStore.setState({
+      role: 'teacher',
+      user: {
+        id: 'teacher-1',
+        name: 'Form Teacher',
+        email: 'teacher@example.com',
+        role: 'TEACHER',
+      },
+    });
+    mockUseClassAttendance.mockReturnValue({
+      data: {
+        classId: 'cls-1',
+        date: '2026-06-28',
+        summary: { present: 0, absent: 0, late: 0, excused: 0, total: 0 },
+        students: [],
+      },
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+
+    renderWithProviders(<AttendancePage />);
+
+    expect(screen.getByText('No students enrolled in this class roster.')).toBeInTheDocument();
+  });
+
+  it('displays error notice and avoids rendering roster when classes or attendance request fails', () => {
+    useAuthStore.setState({
+      role: 'teacher',
+      user: {
+        id: 'teacher-1',
+        name: 'Teacher User',
+        email: 'teacher@example.com',
+        role: 'TEACHER',
+      },
+    });
+    mockUseClasses.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      error: new Error('Insufficient permissions'),
+    });
+    mockUseClassAttendance.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+
+    renderWithProviders(<AttendancePage />);
+
+    expect(screen.getByText('Failed to load classes')).toBeInTheDocument();
+    expect(screen.getByText('Insufficient permissions')).toBeInTheDocument();
+    expect(screen.getByText('Attendance Register Unavailable')).toBeInTheDocument();
+    expect(screen.queryByText('Class Attendance Register')).not.toBeInTheDocument();
+  });
+
+  it('unmounts cleanly when navigating away after Attendance mounts with populated students', () => {
+    useAuthStore.setState({
+      role: 'teacher',
+      user: {
+        id: 'teacher-1',
+        name: 'Form Teacher',
+        email: 'teacher@example.com',
+        role: 'TEACHER',
+      },
+    });
+
+    const { unmount } = renderWithProviders(<AttendancePage />);
+
+    expect(screen.getByText('Amelia Bennett')).toBeInTheDocument();
+    expect(() => unmount()).not.toThrow();
+  });
 });

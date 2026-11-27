@@ -13,6 +13,7 @@ import {
   MapPinIcon,
   ShieldCheckIcon,
   CheckCircle2Icon,
+  AlertCircleIcon,
 } from 'lucide-react';
 import { StatCard } from '@/components/shared/StatCard';
 import { Badge } from '@/components/shared/Badge';
@@ -29,7 +30,13 @@ import { useAuthStore } from '@/stores/auth.store';
 import { useSchoolStore } from '@/stores/school.store';
 import { useClasses } from '@/features/classes/hooks';
 import { useSubjects } from '@/features/subjects/hooks';
-import { composeClassName, GRADE_LEVEL_LABELS } from '@/features/classes/constants';
+import {
+  composeClassName,
+  GRADE_LEVEL_LABELS,
+  extractActiveClasses,
+  sortClassesSerially,
+} from '@/features/classes/constants';
+import { isPermissionError, getApiErrorMessage } from '@/lib/api/error';
 import type { ClassRecord } from '@/features/classes/types';
 import type { SubjectRecord } from '@/features/subjects/types';
 
@@ -47,12 +54,21 @@ export function TeacherDashboardView() {
   const schoolName = useSchoolStore((s) => s.schoolName) || 'Your School';
   const firstName = user?.name ? user.name.split(' ')[0] : 'Teacher';
 
-  const { data: rawClasses = [] } = useClasses();
-  const { data: rawSubjects = [] } = useSubjects();
+  const {
+    data: rawClasses = [],
+    isLoading: classesLoading,
+    error: classesError,
+    refetch: refetchClasses,
+  } = useClasses();
+  const {
+    data: rawSubjects = [],
+    isLoading: subjectsLoading,
+    error: subjectsError,
+    refetch: refetchSubjects,
+  } = useSubjects();
 
   const classes: ClassRecord[] = useMemo(() => {
-    if (Array.isArray(rawClasses)) return rawClasses;
-    return (rawClasses as any)?.data || (rawClasses as any)?.classes || [];
+    return sortClassesSerially(extractActiveClasses<ClassRecord>(rawClasses));
   }, [rawClasses]);
 
   const subjects: SubjectRecord[] = useMemo(() => {
@@ -60,51 +76,79 @@ export function TeacherDashboardView() {
     return (rawSubjects as any)?.data || (rawSubjects as any)?.subjects || [];
   }, [rawSubjects]);
 
-  // Find classes assigned to this teacher
+  const userId = user?.id;
+  const userTeacherId = user?.teacherId;
+  const userName = user?.name;
+  const userFullName = user?.fullName;
+  const userClassId = user?.classId;
+
+  const teacherIds = useMemo(() => {
+    const ids = new Set<string>();
+    if (userId) ids.add(userId);
+    if (userTeacherId) ids.add(userTeacherId);
+    return ids;
+  }, [userId, userTeacherId]);
+
+  const teacherNames = useMemo(() => {
+    const names = new Set<string>();
+    if (userName) names.add(userName);
+    if (userFullName) names.add(userFullName);
+    return names;
+  }, [userName, userFullName]);
+
+  // Find classes assigned to this teacher (without fabricating classes)
   const myClasses = useMemo(() => {
     if (!user) return [];
-    return classes.filter((c: ClassRecord) => {
+    const matched = classes.filter((c: ClassRecord) => {
       const matchesDirectClass = Boolean(user.classId && c.id === user.classId);
-      const matchesFormTeacherId = Boolean(user.id && c.formTeacher === user.id);
-      const matchesFormTeacherName = Boolean(user.name && c.formTeacher === user.name);
-      const matchesTeacherId = Boolean(user.id && c.teacher && c.teacher === user.id);
-      const matchesTeacherName = Boolean(user.name && c.teacher && c.teacher === user.name);
+      const matchesFormTeacherId = Boolean(c.formTeacher && teacherIds.has(c.formTeacher));
+      const matchesFormTeacherName = Boolean(
+        (c.formTeacher && teacherNames.has(c.formTeacher)) ||
+        (c.formTeacherName && teacherNames.has(c.formTeacherName))
+      );
+      const matchesTeacherId = Boolean(c.teacher && teacherIds.has(c.teacher));
+      const matchesTeacherName = Boolean(c.teacher && teacherNames.has(c.teacher));
+      const matchesSubjectOffering = subjects.some((s) =>
+        s.offerings?.some(
+          (o) =>
+            o.classId === c.id &&
+            o.teacherIds?.some((tid) => teacherIds.has(tid))
+        )
+      );
       return (
         matchesDirectClass ||
         matchesFormTeacherId ||
         matchesFormTeacherName ||
         matchesTeacherId ||
-        matchesTeacherName
+        matchesTeacherName ||
+        matchesSubjectOffering
       );
     });
-  }, [classes, user]);
+    return sortClassesSerially(matched);
+  }, [classes, subjects, user, teacherIds, teacherNames]);
 
   // Distinct classes where the teacher is Form Teacher
   const formClasses = useMemo(() => {
     return myClasses.filter((c: ClassRecord) => {
       return (
-        (user?.classId && c.id === user.classId) ||
-        (user?.name && c.formTeacher === user.name) ||
-        (user?.id && c.formTeacher === user.id)
+        Boolean(userClassId && c.id === userClassId) ||
+        Boolean(c.formTeacher && (teacherIds.has(c.formTeacher) || teacherNames.has(c.formTeacher))) ||
+        Boolean(c.formTeacherName && teacherNames.has(c.formTeacherName))
       );
     });
-  }, [myClasses, user]);
+  }, [myClasses, userClassId, teacherIds, teacherNames]);
 
-  // Find subjects assigned to this teacher
+  // Find subjects assigned to this teacher (explicit offerings only)
   const mySubjects = useMemo(() => {
     if (!user) return [];
-    return subjects.filter((s: SubjectRecord) => {
-      const matchesOffering = s.offerings?.some(
-        (o) =>
-          Boolean(user.id && o.teacherIds?.includes(user.id)) ||
-          Boolean(user.classId && o.classId === user.classId)
-      );
-      const matchesClass = Boolean(
-        user.classId && s.classIds?.includes(user.classId)
-      );
-      return matchesOffering || matchesClass;
-    });
-  }, [subjects, user]);
+    return subjects.filter((s: SubjectRecord) =>
+      Boolean(
+        s.offerings?.some((o) =>
+          Boolean(o.teacherIds?.some((tid) => teacherIds.has(tid)))
+        )
+      )
+    );
+  }, [subjects, user, teacherIds]);
 
   const totalStudents = useMemo(() => {
     return myClasses.reduce(
@@ -141,8 +185,65 @@ export function TeacherDashboardView() {
     });
   }, [myClasses, mySubjects, user]);
 
+  const loadError = classesError || subjectsError;
+  const isPermissionFailure =
+    isPermissionError(classesError) || isPermissionError(subjectsError);
+  const isLoadingAssignments = Boolean(classesLoading || subjectsLoading);
+
   return (
     <div className="space-y-6">
+      {loadError && (
+        <div
+          role="alert"
+          className={
+            isPermissionFailure
+              ? 'flex items-start justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900'
+              : 'flex items-start justify-between gap-3 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800'
+          }
+        >
+          <div className="flex items-start gap-3">
+            <AlertCircleIcon
+              className={`mt-0.5 h-4 w-4 shrink-0 ${
+                isPermissionFailure ? 'text-amber-600' : 'text-rose-500'
+              }`}
+            />
+            <div>
+              <p className="font-semibold">
+                {isPermissionFailure
+                  ? 'Teaching assignment access restricted'
+                  : 'Unable to load teaching assignments'}
+              </p>
+              <p className={`mt-0.5 text-xs ${isPermissionFailure ? 'text-amber-800' : 'text-rose-700'}`}>
+                {isPermissionFailure
+                  ? 'Your teacher account does not have permission to read the school class or subject directories. A teacher-scoped backend endpoint is required to list all assigned classes and subjects.'
+                  : getApiErrorMessage(
+                      loadError,
+                      'Failed to retrieve assigned classes or subjects from the server.'
+                    )}
+              </p>
+            </div>
+          </div>
+          {!isPermissionFailure && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                if (classesError && refetchClasses) refetchClasses();
+                if (subjectsError && refetchSubjects) refetchSubjects();
+              }}
+            >
+              Retry
+            </Button>
+          )}
+        </div>
+      )}
+
+      {isLoadingAssignments && (
+        <div className="rounded-xl border border-slate-100 bg-white px-4 py-3 text-xs text-slate-500">
+          Loading your teaching assignments…
+        </div>
+      )}
+
       {/* Welcome Banner */}
       <div className="relative overflow-hidden rounded-2xl bg-indigo-900 p-6 text-white sm:p-7 shadow-xs">
         <div

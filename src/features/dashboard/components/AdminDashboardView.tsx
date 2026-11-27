@@ -29,6 +29,7 @@ import { useAuthStore } from '@/stores/auth.store';
 import { useSchoolStore } from '@/stores/school.store';
 import { useTeachers } from '@/features/teachers/hooks';
 import { useClasses } from '@/features/classes/hooks';
+import { extractActiveClasses } from '@/features/classes/constants';
 import { useSubjects } from '@/features/subjects/hooks';
 import { useStudents } from '@/features/students/hooks';
 import { useParents } from '@/features/parents/hooks';
@@ -92,8 +93,7 @@ export function AdminDashboardView() {
   const { data: parentsResponse } = useParents();
 
   const classes: ClassRecord[] = useMemo(() => {
-    if (Array.isArray(rawClasses)) return rawClasses;
-    return (rawClasses as any)?.data || (rawClasses as any)?.classes || [];
+    return extractActiveClasses<ClassRecord>(rawClasses);
   }, [rawClasses]);
 
   const studentsList = useMemo(() => {

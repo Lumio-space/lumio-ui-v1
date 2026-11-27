@@ -226,4 +226,35 @@ describe('AssignTeacherSubjectModal (Multi-Class Selection & Backend Guard)', ()
     // Mutate should NOT have been called
     expect(mockMutateAsync).not.toHaveBeenCalled();
   });
+
+  it('excludes soft-deleted classes from cohort checklist', () => {
+    mockUseClasses.mockReturnValue({
+      data: [
+        ...MOCK_CLASSES,
+        {
+          id: 'cls-deleted',
+          schoolId: 'sch-1',
+          grade: 'JSS2',
+          section: 'C',
+          level: 'junior_secondary',
+          capacity: 30,
+          room: 199,
+          createdAt: '2026-01-01',
+          deletedAt: '2026-02-01',
+        },
+      ],
+      isLoading: false,
+    });
+
+    renderWithProviders(
+      <AssignTeacherSubjectModal
+        open={true}
+        onClose={vi.fn()}
+        teacher={MOCK_TEACHER}
+      />
+    );
+
+    expect(screen.getByText('JSS 1 A')).toBeInTheDocument();
+    expect(screen.queryByText('JSS 2 C')).not.toBeInTheDocument();
+  });
 });

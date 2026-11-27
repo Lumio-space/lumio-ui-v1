@@ -149,4 +149,33 @@ describe('AssignClassesModal', () => {
     const alert = screen.getByRole('alert');
     expect(alert).toHaveTextContent('Network error: failed to assign classes');
   });
+
+  it('displays backend limitation advisory and excludes soft-deleted classes', () => {
+    renderWithProviders(
+      <AssignClassesModal
+        open={true}
+        onClose={vi.fn()}
+        subject={mockSubjectNursery}
+        classes={[
+          ...mockClasses,
+          {
+            id: 'cls-deleted',
+            schoolId: 'sch-1',
+            grade: 'Primary1',
+            section: 'C',
+            level: 'primary',
+            capacity: 30,
+            room: 199,
+            createdAt: '2026-01-01',
+            deletedAt: '2026-02-01',
+          },
+        ]}
+        offerings={[]}
+        onSave={vi.fn()}
+      />
+    );
+
+    expect(screen.getByRole('note')).toHaveTextContent(/not currently supported by the backend/i);
+    expect(screen.queryByText('Primary 1 C')).not.toBeInTheDocument();
+  });
 });

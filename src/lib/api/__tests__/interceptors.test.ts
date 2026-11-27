@@ -216,6 +216,81 @@ describe('apiClient Interceptors', () => {
       expect(capturedConfig).not.toBeNull();
       expect(capturedConfig!.headers.Authorization).toBeUndefined();
     });
+
+    it('attaches Authorization Bearer token to POST /invites/accept-existing and preserves invitation token in body', async () => {
+      document.cookie = 'token=jwt-existing-user-token; path=/';
+      document.cookie = 'schoolId=school-uuid-111; path=/';
+
+      let capturedConfig: InternalAxiosRequestConfig | null = null;
+      apiClient.defaults.adapter = async (config) => {
+        capturedConfig = config;
+        return {
+          data: { success: true, role: 'teacher', schoolId: 'school-uuid-111' },
+          status: 200,
+          statusText: 'OK',
+          headers: {},
+          config,
+        } as AxiosResponse;
+      };
+
+      const res = await apiClient.post('/invites/accept-existing', {
+        token: 'invite-body-token-xyz',
+      });
+
+      expect(res.status).toBe(200);
+      expect(capturedConfig).not.toBeNull();
+      expect(capturedConfig!.headers.Authorization).toBe('Bearer jwt-existing-user-token');
+      expect(capturedConfig!.headers['x-school-id']).toBe('school-uuid-111');
+      expect(JSON.parse(capturedConfig!.data as string)).toEqual({
+        token: 'invite-body-token-xyz',
+      });
+    });
+
+    it('attaches Authorization Bearer token to /v1/invites/accept-existing even with base path prefix', async () => {
+      document.cookie = 'token=jwt-prefixed-token; path=/';
+
+      let capturedConfig: InternalAxiosRequestConfig | null = null;
+      apiClient.defaults.adapter = async (config) => {
+        capturedConfig = config;
+        return {
+          data: { success: true },
+          status: 200,
+          statusText: 'OK',
+          headers: {},
+          config,
+        } as AxiosResponse;
+      };
+
+      await apiClient.post('/v1/invites/accept-existing', { token: 'invite-tok' });
+
+      expect(capturedConfig!.headers.Authorization).toBe('Bearer jwt-prefixed-token');
+    });
+
+    it('keeps /invites/accept, /invites/register, /invites/decline, and /auth/forgot-password public with base paths or query strings', async () => {
+      document.cookie = 'token=jwt-some-token; path=/';
+
+      const capturedUrls: Array<{ url?: string; auth?: unknown }> = [];
+      apiClient.defaults.adapter = async (config) => {
+        capturedUrls.push({ url: config.url, auth: config.headers.Authorization });
+        return {
+          data: { ok: true },
+          status: 200,
+          statusText: 'OK',
+          headers: {},
+          config,
+        } as AxiosResponse;
+      };
+
+      await apiClient.get('/v1/invites/accept?token=abc');
+      await apiClient.post('/invites/register', { token: 'abc', fullName: 'Jane', password: 'Password123!' });
+      await apiClient.post('/invites/decline', { token: 'abc' });
+      await apiClient.post('/auth/forgot-password', { email: 'teacher@school.edu' });
+
+      expect(capturedUrls).toHaveLength(4);
+      capturedUrls.forEach((entry) => {
+        expect(entry.auth).toBeUndefined();
+      });
+    });
   });
 
   describe('Response Interceptor — 401 Session Expiry', () => {
@@ -307,6 +382,38 @@ describe('apiClient Interceptors', () => {
 
       // Should not redirect to /login
       expect(window.location.href).toBe('http://localhost/accept-invite?token=invalid-tok');
+    });
+
+    it('clears invalid auth state without redirecting away from /accept-invite when /invites/accept-existing returns 401', async () => {
+      document.cookie = 'token=bad-jwt-token; path=/';
+      window.location.pathname = '/accept-invite';
+      window.location.href = 'http://localhost/accept-invite?token=invite-tok';
+
+      apiClient.defaults.adapter = async (config) => {
+        const error = new Error('Invalid or expired token') as unknown as {
+          response: AxiosResponse;
+          config: InternalAxiosRequestConfig;
+          isAxiosError: boolean;
+        };
+        error.isAxiosError = true;
+        error.config = config;
+        error.response = {
+          data: { message: 'Invalid or expired token', statusCode: 401 },
+          status: 401,
+          statusText: 'Unauthorized',
+          headers: {},
+          config,
+        };
+        throw error;
+      };
+
+      await expect(
+        apiClient.post('/invites/accept-existing', { token: 'invite-tok' })
+      ).rejects.toThrow('Invalid or expired token');
+
+      expect(useAuthStore.getState().isAuthenticated).toBe(false);
+      expect(useAuthStore.getState().user).toBeNull();
+      expect(window.location.href).toBe('http://localhost/accept-invite?token=invite-tok');
     });
 
     it('invalidates session and clears cookies when protected endpoint returns 403 No membership found', async () => {

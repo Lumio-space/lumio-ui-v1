@@ -148,4 +148,32 @@ describe('MySubjectsView - Teacher Scoped Subjects & Drill-Down', () => {
     expect(screen.getByText(/SS2 Science A/i)).toBeInTheDocument();
     expect(screen.getByText(/open teaching context/i)).toBeInTheDocument();
   });
+
+  it('displays permission-restricted state when GET /subjects returns 403 instead of empty state', () => {
+    const forbiddenErr = Object.assign(new Error('Insufficient permissions'), {
+      status: 403,
+      response: { status: 403 },
+    });
+    vi.spyOn(subjectsHooks, 'useSubjects').mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      error: forbiddenErr,
+    } as any);
+
+    useAuthStore.setState({
+      user: {
+        id: 'teacher-1',
+        name: 'Teacher One',
+        email: 'teacher1@school.edu',
+        role: 'teacher',
+      },
+      isAuthenticated: true,
+      role: 'teacher',
+    });
+
+    renderWithProviders(<MySubjectsView />);
+
+    expect(screen.getByText('Assigned Subjects Unavailable')).toBeInTheDocument();
+    expect(screen.queryByText(/no subjects assigned yet/i)).not.toBeInTheDocument();
+  });
 });

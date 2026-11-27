@@ -31,14 +31,29 @@ import { useSubjects } from '@/features/subjects/hooks';
 import { useClasses } from '@/features/classes/hooks';
 import { useAuthStore } from '@/stores/auth.store';
 import { TeachingContextModal } from '@/features/classes/components/TeachingContextModal';
-import { composeClassName, GRADE_LEVEL_LABELS } from '@/features/classes/constants';
+import {
+  composeClassName,
+  GRADE_LEVEL_LABELS,
+  extractActiveClasses,
+  sortClassesSerially,
+} from '@/features/classes/constants';
+import { isPermissionError, getApiErrorMessage } from '@/lib/api/error';
 import type { SubjectRecord } from '@/features/subjects/types';
 import type { ClassRecord } from '@/features/classes/types';
 
 export function MySubjectsView() {
   const user = useAuthStore((s) => s.user);
-  const { data: rawSubjects = [], isLoading: subjectsLoading, error } = useSubjects();
-  const { data: rawClasses = [], isLoading: classesLoading } = useClasses();
+  const {
+    data: rawSubjects = [],
+    isLoading: subjectsLoading,
+    error,
+    refetch: refetchSubjects,
+  } = useSubjects();
+  const {
+    data: rawClasses = [],
+    isLoading: classesLoading,
+    error: classesError,
+  } = useClasses();
 
   const subjects: SubjectRecord[] = useMemo(() => {
     if (Array.isArray(rawSubjects)) return rawSubjects;
@@ -46,8 +61,7 @@ export function MySubjectsView() {
   }, [rawSubjects]);
 
   const classes: ClassRecord[] = useMemo(() => {
-    if (Array.isArray(rawClasses)) return rawClasses;
-    return (rawClasses as any)?.data || (rawClasses as any)?.classes || [];
+    return sortClassesSerially(extractActiveClasses<ClassRecord>(rawClasses));
   }, [rawClasses]);
 
   const [query, setQuery] = useState('');
@@ -58,37 +72,31 @@ export function MySubjectsView() {
     classRecord: ClassRecord;
   } | null>(null);
 
-  // Filter subjects assigned to this teacher
+  // Filter subjects assigned to this teacher (explicit offerings only)
   const mySubjects = useMemo(() => {
     if (!user) return [];
-    return subjects.filter((s: SubjectRecord) => {
-      const matchesOffering = s.offerings?.some(
-        (o) =>
-          (user.id ? o.teacherIds?.includes(user.id) : false) ||
-          (user.classId && o.classId === user.classId)
-      );
-      const matchesClass = Boolean(user.classId && s.classIds?.includes(user.classId));
-      return matchesOffering || matchesClass;
-    });
+    return subjects.filter((s: SubjectRecord) =>
+      Boolean(
+        s.offerings?.some((o) =>
+          Boolean(user.id && o.teacherIds?.includes(user.id))
+        )
+      )
+    );
   }, [subjects, user]);
 
-  // Find classes where teacher teaches the openSubject
+  // Find classes where teacher teaches the openSubject (explicit offerings only)
   const classesForOpenSubject = useMemo(() => {
     if (!openSubject || !user) return [];
-    return classes.filter((c: ClassRecord) => {
-      const matchesOffering = openSubject.offerings?.some(
-        (o) =>
-          o.classId === c.id &&
-          ((user.id && o.teacherIds?.includes(user.id)) ||
-            (user.classId && o.classId === user.classId))
-      );
-      const matchesDirectClass = Boolean(
-        user.classId &&
-          user.classId === c.id &&
-          openSubject.classIds?.includes(c.id)
-      );
-      return matchesOffering || matchesDirectClass;
-    });
+    const matched = classes.filter((c: ClassRecord) =>
+      Boolean(
+        openSubject.offerings?.some(
+          (o) =>
+            o.classId === c.id &&
+            Boolean(user.id && o.teacherIds?.includes(user.id))
+        )
+      )
+    );
+    return sortClassesSerially(matched);
   }, [classes, openSubject, user]);
 
   const totalStudentsInOpenSubject = useMemo(() => {
@@ -276,6 +284,9 @@ export function MySubjectsView() {
   }
 
   /* ------------------- Subjects List View ------------------- */
+  const isSubjectsForbidden = isPermissionError(error);
+  const isClassesForbidden = isPermissionError(classesError);
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -283,11 +294,50 @@ export function MySubjectsView() {
         description={`The subjects ${user?.name ?? 'you'} are assigned to teach. Set by your school administrator.`}
       />
 
-      {error && (
-        <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
-          Failed to load assigned subjects. Please refresh or try again later.
-        </div>
-      )}
+      {error ? (
+        <Card className={isSubjectsForbidden ? 'border-amber-200 bg-amber-50/70' : 'border-rose-200 bg-rose-50'}>
+          <CardContent className="flex flex-col items-center justify-center p-10 text-center">
+            <div
+              className={`flex h-12 w-12 items-center justify-center rounded-2xl mb-4 ${
+                isSubjectsForbidden ? 'bg-amber-100 text-amber-700' : 'bg-rose-100 text-rose-700'
+              }`}
+            >
+              <LockIcon className="h-6 w-6" />
+            </div>
+            <h3 className={`font-display text-base font-bold ${isSubjectsForbidden ? 'text-amber-950' : 'text-rose-900'}`}>
+              {isSubjectsForbidden
+                ? 'Assigned Subjects Unavailable'
+                : 'Unable to Load Assigned Subjects'}
+            </h3>
+            <p className={`mt-1 max-w-md text-xs leading-relaxed ${isSubjectsForbidden ? 'text-amber-800' : 'text-rose-700'}`}>
+              {isSubjectsForbidden
+                ? 'Your teacher account does not currently have permission to access the school subjects directory. A dedicated teacher-scoped endpoint is required from the backend.'
+                : getApiErrorMessage(error, 'Failed to load assigned subjects. Please try again.')}
+            </p>
+            {!isSubjectsForbidden && refetchSubjects && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => refetchSubjects()}
+                className="mt-4"
+              >
+                Try again
+              </Button>
+            )}
+          </CardContent>
+        </Card>
+      ) : (
+        <>
+          {classesError && (
+            <div
+              role="alert"
+              className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800"
+            >
+              {isClassesForbidden
+                ? 'Class details could not be loaded because your role lacks access to the classes directory.'
+                : `Unable to load class details: ${getApiErrorMessage(classesError, 'Request failed.')}`}
+            </div>
+          )}
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <StatCard
@@ -396,6 +446,8 @@ export function MySubjectsView() {
             </div>
           )}
         </>
+      )}
+      </>
       )}
     </div>
   );

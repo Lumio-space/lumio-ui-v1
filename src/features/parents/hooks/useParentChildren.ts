@@ -12,29 +12,8 @@ import { useAuthStore } from '@/stores/auth.store';
 import { useParents } from './index';
 import { useStudents } from '@/features/students/hooks';
 import { useClasses } from '@/features/classes/hooks';
-import type { EnrichedChildRecord, ChildSubjectResult } from '../types';
+import type { EnrichedChildRecord } from '../types';
 import type { ClassRecord } from '@/features/classes/types';
-
-export function calculateGradeLetter(score: number): {
-  letter: string;
-  tone: 'green' | 'blue' | 'gold' | 'red';
-} {
-  if (score >= 90) return { letter: 'A+', tone: 'green' };
-  if (score >= 80) return { letter: 'A', tone: 'green' };
-  if (score >= 70) return { letter: 'B', tone: 'blue' };
-  if (score >= 60) return { letter: 'C', tone: 'gold' };
-  if (score >= 50) return { letter: 'D', tone: 'gold' };
-  return { letter: 'F', tone: 'red' };
-}
-
-const DEFAULT_SCORES: Record<string, number> = {
-  Mathematics: 92,
-  English: 88,
-  Physics: 78,
-  Chemistry: 85,
-  Biology: 90,
-  History: 74,
-};
 
 const DEFAULT_TIME_SLOTS = [
   '08:30 - 09:30',
@@ -116,15 +95,7 @@ export function useParentChildren() {
         const formTeacherEmail = `${formTeacherName.toLowerCase().replace(/[^a-z0-9]/g, '.')}@school.edu`;
 
         const subjects =
-          cls?.subjects && cls.subjects.length > 0
-            ? cls.subjects
-            : Object.keys(DEFAULT_SCORES);
-
-        const results: ChildSubjectResult[] = subjects.slice(0, 6).map((sub, sIdx) => {
-          const score = DEFAULT_SCORES[sub] ?? (85 - ((sIdx * 4) % 15));
-          const { letter, tone } = calculateGradeLetter(score);
-          return { subject: sub, score, grade: letter, tone };
-        });
+          cls?.subjects && cls.subjects.length > 0 ? cls.subjects : [];
 
         const schedule = subjects.slice(0, 5).map((sub, i) => ({
           time: DEFAULT_TIME_SLOTS[i] || '08:30 - 09:30',
@@ -144,7 +115,7 @@ export function useParentChildren() {
           className: s.className || (cls ? `${cls.grade} · ${cls.section}` : s.grade || 'Class 5A'),
           status: s.status || 'Active',
           attendance: typeof s.attendance === 'number' && s.attendance > 0 ? s.attendance : 94,
-          average: typeof s.average === 'number' && s.average > 0 ? s.average : 88,
+          average: typeof s.average === 'number' && s.average > 0 ? s.average : 0,
           avatar: s.avatar,
           relationship: 'Ward',
           formTeacher: {
@@ -153,7 +124,7 @@ export function useParentChildren() {
             email: formTeacherEmail,
           },
           subjects,
-          results,
+          results: undefined,
           schedule,
         };
       });
@@ -171,15 +142,7 @@ export function useParentChildren() {
         const formTeacherEmail = `${formTeacherName.toLowerCase().replace(/[^a-z0-9]/g, '.')}@school.edu`;
 
         const subjects =
-          cls?.subjects && cls.subjects.length > 0
-            ? cls.subjects
-            : Object.keys(DEFAULT_SCORES);
-
-        const results: ChildSubjectResult[] = subjects.slice(0, 6).map((sub, sIdx) => {
-          const score = DEFAULT_SCORES[sub] ?? (85 - ((sIdx * 4) % 15));
-          const { letter, tone } = calculateGradeLetter(score);
-          return { subject: sub, score, grade: letter, tone };
-        });
+          cls?.subjects && cls.subjects.length > 0 ? cls.subjects : [];
 
         const schedule = subjects.slice(0, 5).map((sub, i) => ({
           time: DEFAULT_TIME_SLOTS[i] || '08:30 - 09:30',
@@ -199,7 +162,7 @@ export function useParentChildren() {
           className: pc.className || (cls ? `${cls.grade} · ${cls.section}` : 'Primary 5 · A'),
           status: pc.studentStatus || 'Active',
           attendance: 94,
-          average: 88,
+          average: 0,
           avatar: pc.avatar,
           relationship: pc.relationship || 'Ward',
           formTeacher: {
@@ -208,7 +171,7 @@ export function useParentChildren() {
             email: formTeacherEmail,
           },
           subjects,
-          results,
+          results: undefined,
           schedule,
         };
       });
@@ -238,18 +201,15 @@ export function useParentChildren() {
             name: formTeacherName,
             email: `${formTeacherName.toLowerCase().replace(/[^a-z0-9]/g, '.')}@school.edu`,
           },
-          subjects: Object.keys(DEFAULT_SCORES),
-          results: Object.entries(DEFAULT_SCORES).map(([sub, score]) => ({
-            subject: sub,
-            score,
-            grade: calculateGradeLetter(score).letter,
-            tone: calculateGradeLetter(score).tone,
-          })),
-          schedule: Object.keys(DEFAULT_SCORES).slice(0, 5).map((sub, i) => ({
-            time: DEFAULT_TIME_SLOTS[i],
-            subject: sub,
-            room: `Room 10${i + 1}`,
-          })),
+          subjects: Array.isArray(ac.subjects) ? ac.subjects : [],
+          results: undefined,
+          schedule: Array.isArray(ac.subjects)
+            ? ac.subjects.slice(0, 5).map((sub: string, i: number) => ({
+                time: DEFAULT_TIME_SLOTS[i] || '08:30 - 09:30',
+                subject: sub,
+                room: `Room 10${i + 1}`,
+              }))
+            : [],
         };
       });
     }

@@ -22,6 +22,8 @@ import { useClasses } from '@/features/classes/hooks';
 import {
   GRADE_LEVEL_LABELS,
   composeClassName,
+  extractActiveClasses,
+  sortClassesSerially,
 } from '@/features/classes/constants';
 import type { ClassRecord } from '@/features/classes/types';
 import { useInviteStudent } from '../hooks/useInviteStudent';
@@ -41,11 +43,7 @@ export function InviteStudentModal({
   onInvitationCreated,
 }: InviteStudentModalProps) {
   const { data: rawClasses = [], isLoading: classesLoading } = useClasses();
-  const classes: ClassRecord[] = Array.isArray(rawClasses)
-    ? rawClasses
-    : (rawClasses as { data?: ClassRecord[]; classes?: ClassRecord[] })?.data ||
-      (rawClasses as { data?: ClassRecord[]; classes?: ClassRecord[] })?.classes ||
-      [];
+  const classes: ClassRecord[] = sortClassesSerially(extractActiveClasses<ClassRecord>(rawClasses));
 
   const inviteMutation = useInviteStudent();
 

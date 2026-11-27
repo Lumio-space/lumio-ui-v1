@@ -46,11 +46,13 @@ import {
 import { Badge } from '@/components/shared/Badge';
 import { Avatar } from '@/components/shared/Avatar';
 import { Button } from '@/components/ui/button';
-import { Progress, ProgressRing } from '@/components/shared/Progress';
+import { ProgressRing } from '@/components/shared/Progress';
 import { AttendanceArea } from '@/components/charts/Charts';
 import { useAuthStore } from '@/stores/auth.store';
 import { useSchoolStore } from '@/stores/school.store';
 import { useParentChildren } from '@/features/parents/hooks';
+import { useAnnouncements } from '@/features/announcements/hooks';
+import { AUDIENCE_LABELS, AUDIENCE_TONES } from '@/features/announcements/constants';
 import { MessageTeacherModal } from '@/features/parents/components/MessageTeacherModal';
 import { cn } from '@/lib/utils';
 
@@ -62,12 +64,20 @@ export function ParentDashboardView() {
   const {
     children,
     selectedChild,
-    selectedChildId,
     setSelectedChildId,
     isLoading,
   } = useParentChildren();
 
   const [messageTeacherOpen, setMessageTeacherOpen] = useState(false);
+
+  const {
+    data: announcementsResponse,
+    isLoading: announcementsLoading,
+    isError: announcementsError,
+    error: announcementsErrorObj,
+  } = useAnnouncements(1, 3);
+
+  const recentAnnouncements = announcementsResponse?.data ?? [];
 
   // Today's day of the week
   const todayDayName = useMemo(() => format(new Date(), 'EEEE'), []);
@@ -81,27 +91,6 @@ export function ParentDashboardView() {
       { month: 'Apr', present: 91, absent: 9 },
       { month: 'May', present: 96, absent: 4 },
       { month: 'Jun', present: 94, absent: 6 },
-    ],
-    []
-  );
-
-  // School updates matching lumio-react announcements
-  const schoolUpdates = useMemo(
-    () => [
-      {
-        id: 'u1',
-        title: 'Upcoming Parent-Teacher Meeting',
-        body: 'Term 1 progress review meetings will take place next Friday from 2:00 PM to 6:00 PM.',
-        author: 'Principal Office',
-        date: '2 days ago',
-      },
-      {
-        id: 'u2',
-        title: 'Annual Sports Day Notice',
-        body: 'Inter-house athletic trials begin this Wednesday. Students should come in proper sports attire.',
-        author: 'Sports Department',
-        date: '3 days ago',
-      },
     ],
     []
   );
@@ -315,30 +304,15 @@ export function ParentDashboardView() {
               </CardHeader>
 
               <CardContent className="space-y-4">
-                {selectedChild.results && selectedChild.results.length > 0 ? (
-                  selectedChild.results.map((res) => (
-                    <div key={res.subject}>
-                      <div className="mb-1.5 flex items-center justify-between text-sm">
-                        <span className="font-medium text-slate-700">{res.subject}</span>
-                        <span className="flex items-center gap-2">
-                          <Badge tone={res.tone}>{res.grade}</Badge>
-                          <span className="font-bold text-slate-900">{res.score}%</span>
-                        </span>
-                      </div>
-                      <Progress
-                        value={res.score}
-                        tone={res.score >= 80 ? 'green' : res.score >= 60 ? 'gold' : 'red'}
-                        size="sm"
-                        label={res.subject}
-                      />
-                    </div>
-                  ))
-                ) : (
-                  <div className="py-6 text-center text-xs text-slate-500">
-                    <p className="font-semibold text-slate-700">No grades recorded yet</p>
-                    <p className="mt-1">Academic assessments will appear once published by teachers.</p>
-                  </div>
-                )}
+                <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50/60 px-4 py-8 text-center">
+                  <AlertCircleIcon className="mb-2 h-6 w-6 text-slate-400" aria-hidden="true" />
+                  <p className="text-sm font-semibold text-slate-700">
+                    Parent results viewing is not yet available
+                  </p>
+                  <p className="mt-1 max-w-md text-xs text-slate-500">
+                    The backend API does not currently provide a direct parent-facing results endpoint. Published term results can be accessed by students using a result scratch card.
+                  </p>
+                </div>
               </CardContent>
             </Card>
 
@@ -444,23 +418,59 @@ export function ParentDashboardView() {
                 </div>
 
                 {/* Announcement Items */}
-                {schoolUpdates.map((notice) => (
-                  <div
-                    key={notice.id}
-                    className="rounded-xl border border-slate-100 p-3 hover:border-slate-200 transition-colors"
-                  >
-                    <p className="text-xs font-bold text-slate-900">
-                      {notice.title}
-                    </p>
-                    <p className="mt-1 line-clamp-2 text-xs text-slate-500">
-                      {notice.body}
-                    </p>
-                    <div className="mt-2 flex items-center justify-between text-[10px] text-slate-400">
-                      <span>{notice.author}</span>
-                      <span>{notice.date}</span>
-                    </div>
+                {announcementsLoading ? (
+                  <div className="space-y-2.5" aria-busy="true">
+                    <div className="h-16 animate-pulse rounded-xl bg-slate-100" />
+                    <div className="h-16 animate-pulse rounded-xl bg-slate-100" />
                   </div>
-                ))}
+                ) : announcementsError ? (
+                  <div
+                    role="alert"
+                    className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-700"
+                  >
+                    <AlertCircleIcon className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                    <span>
+                      {announcementsErrorObj instanceof Error
+                        ? announcementsErrorObj.message
+                        : 'Unable to load school announcements.'}
+                    </span>
+                  </div>
+                ) : recentAnnouncements.length === 0 ? (
+                  <div className="rounded-xl border border-slate-100 bg-slate-50/60 p-4 text-center text-xs text-slate-500">
+                    No announcements available yet.
+                  </div>
+                ) : (
+                  recentAnnouncements.map((notice) => {
+                    const parsedDate = new Date(notice.createdAt);
+                    const formattedDate = Number.isNaN(parsedDate.getTime())
+                      ? notice.createdAt
+                      : format(parsedDate, 'MMM d, yyyy');
+
+                    return (
+                      <div
+                        key={notice.id}
+                        className="rounded-xl border border-slate-100 p-3 hover:border-slate-200 transition-colors"
+                      >
+                        <p className="text-xs font-bold text-slate-900">
+                          {notice.title}
+                        </p>
+                        <p className="mt-1 line-clamp-2 text-xs text-slate-500">
+                          {notice.message}
+                        </p>
+                        <div className="mt-2 flex flex-wrap items-center justify-between gap-1.5 text-[10px] text-slate-400">
+                          <div className="flex flex-wrap gap-1">
+                            {notice.audiences.map((aud) => (
+                              <Badge key={aud} tone={AUDIENCE_TONES[aud]}>
+                                {AUDIENCE_LABELS[aud]}
+                              </Badge>
+                            ))}
+                          </div>
+                          <span>{formattedDate}</span>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
 
                 <Link href="/announcements" className="block pt-1">
                   <Button

@@ -16,18 +16,20 @@ const {
   mockUseSubjects,
   mockUseClasses,
   mockUseTeachers,
+  mockDeleteMutate,
 } = vi.hoisted(() => ({
   mockRefetch: vi.fn(),
   mockUseSubjects: vi.fn(),
   mockUseClasses: vi.fn(),
   mockUseTeachers: vi.fn(),
+  mockDeleteMutate: vi.fn(),
 }));
 
 vi.mock('../hooks', () => ({
   useSubjects: () => mockUseSubjects(),
   useCreateSubject: () => ({ mutate: vi.fn(), isPending: false }),
   useUpdateSubject: () => ({ mutate: vi.fn(), isPending: false }),
-  useDeleteSubject: () => ({ mutate: vi.fn(), isPending: false }),
+  useDeleteSubject: () => ({ mutate: mockDeleteMutate, isPending: false }),
   useAssignClasses: () => ({ mutate: vi.fn(), isPending: false }),
   useAssignTeacher: () => ({ mutate: vi.fn(), isPending: false }),
 }));
@@ -124,6 +126,7 @@ beforeEach(() => {
   mockUseSubjects.mockReset();
   mockUseClasses.mockReset();
   mockUseTeachers.mockReset();
+  mockDeleteMutate.mockReset();
   stubData();
 });
 
@@ -292,6 +295,87 @@ describe('SubjectsView', () => {
       const inactiveActions = screen.getByLabelText('Actions for Inactive Subject');
       fireEvent.click(inactiveActions);
       expect(screen.getByText('Mark active')).toBeInTheDocument();
+    });
+  });
+
+  describe('unsupported deassignment safeguards', () => {
+    it('disables Remove from class in SubjectDetailModal and does not allow local-only teacher removal in AssignTeacherModal', async () => {
+      renderWithProviders(<SubjectsView />);
+
+      const mathBtn = screen.getByText('Mathematics').closest('button')!;
+      fireEvent.click(mathBtn);
+
+      await waitFor(() => {
+        expect(screen.getByRole('dialog')).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByRole('tab', { name: /classes/i }));
+
+      const offeringActions = screen.getByLabelText('Actions for Mathematics in Primary 1 A');
+      fireEvent.click(offeringActions);
+
+      const removeItem = await screen.findByRole('menuitem', { name: /remove from class \(unavailable\)/i });
+      expect(removeItem).toBeDisabled();
+
+      // Switch to Change teacher and toggle off assigned teacher
+      fireEvent.click(screen.getByRole('menuitem', { name: /change teacher/i }));
+
+      await waitFor(() => {
+        expect(screen.getByRole('heading', { name: /assign teacher/i })).toBeInTheDocument();
+      });
+
+      const teacherButton = screen.getByRole('button', { name: /teacher/i, pressed: true });
+      fireEvent.click(teacherButton);
+
+      expect(screen.getByRole('note')).toHaveTextContent(/not currently supported by the backend/i);
+      const saveBtn = screen.getByRole('button', { name: /removal unavailable/i });
+      expect(saveBtn).toBeDisabled();
+    });
+  });
+
+  describe('subject deletion', () => {
+    it('deletes subject via confirmation modal and displays success banner', async () => {
+      mockDeleteMutate.mockImplementation((_id, options) => {
+        options?.onSuccess?.();
+      });
+
+      renderWithProviders(<SubjectsView />);
+
+      fireEvent.click(screen.getByLabelText('Actions for Mathematics'));
+      fireEvent.click(screen.getByText('Delete subject'));
+
+      expect(screen.getByRole('heading', { name: /delete subject/i })).toBeInTheDocument();
+
+      const confirmBtn = screen.getByRole('button', { name: /^delete subject$/i });
+      fireEvent.click(confirmBtn);
+
+      expect(mockDeleteMutate).toHaveBeenCalledWith('sub-1', expect.any(Object));
+      await waitFor(() => {
+        expect(screen.getByRole('status')).toHaveTextContent(
+          'Subject "Mathematics" was successfully deleted.'
+        );
+      });
+    });
+
+    it('surfaces deletion error in the modal without closing or showing success', async () => {
+      mockDeleteMutate.mockImplementation((_id, options) => {
+        options?.onError?.(new Error('Cannot delete subject with existing results'));
+      });
+
+      renderWithProviders(<SubjectsView />);
+
+      fireEvent.click(screen.getByLabelText('Actions for Mathematics'));
+      fireEvent.click(screen.getByText('Delete subject'));
+
+      fireEvent.click(screen.getByRole('button', { name: /^delete subject$/i }));
+
+      await waitFor(() => {
+        expect(screen.getByRole('alert')).toHaveTextContent(
+          'Cannot delete subject with existing results'
+        );
+      });
+      expect(screen.getByRole('heading', { name: /delete subject/i })).toBeInTheDocument();
+      expect(screen.queryByRole('status')).not.toBeInTheDocument();
     });
   });
 });

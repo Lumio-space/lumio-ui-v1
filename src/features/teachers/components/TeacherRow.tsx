@@ -16,7 +16,7 @@ import {
   DropdownDivider,
 } from '@/components/shared/Dropdown';
 import { FormTeacherBadge } from './FormTeacherBadge';
-import { assignmentForTeacher } from '../constants';
+import { assignmentsForTeacher, dedupeTeacherSubjects } from '../constants';
 import type { TeacherRecord, TeacherInvitation } from '../types';
 
 interface TeacherRowProps {
@@ -39,8 +39,8 @@ export function TeacherRow({
   onAssignSubject,
 }: TeacherRowProps) {
   const teacherName = teacher.fullName || teacher.name || 'Teacher';
-  const assignment = assignmentForTeacher(invitations || [], teacher);
-  const subjects = teacher.subjects?.map((s) => s.title) || [];
+  const assignments = assignmentsForTeacher(invitations || [], teacher);
+  const subjects = dedupeTeacherSubjects(teacher.subjects).map((s) => s.title);
 
   return (
     <div className="flex items-center gap-4 rounded-xl border border-slate-100 bg-white p-3 transition-colors hover:border-slate-200">
@@ -59,10 +59,13 @@ export function TeacherRow({
         </p>
       </div>
 
-      <FormTeacherBadge
-        invite={assignment}
-        className="hidden lg:inline-flex"
-      />
+      <div className="hidden lg:flex flex-wrap items-center gap-1.5">
+        {assignments.length === 0 ? (
+          <FormTeacherBadge invite={null} />
+        ) : (
+          assignments.map((inv) => <FormTeacherBadge key={inv.id} invite={inv} />)
+        )}
+      </div>
 
       {teacher.department && (
         <Badge tone="slate" className="hidden sm:inline-flex">

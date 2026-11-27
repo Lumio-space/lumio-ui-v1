@@ -133,4 +133,36 @@ describe('AttendanceRoster', () => {
     expect(screen.getByText('Late')).toBeInTheDocument();
     expect(screen.getByText('Excused')).toBeInTheDocument();
   });
+
+  it('does not trigger infinite summary updates when re-rendered with new empty array references or inline callbacks', () => {
+    const onSummaryChange = vi.fn();
+
+    const { rerender } = render(
+      <AttendanceRoster
+        students={[]}
+        date="2026-11-23"
+        classNameDisplay="Grade 10 A"
+        readOnly={false}
+        onSummaryChange={(s) => onSummaryChange(s)}
+      />
+    );
+
+    expect(onSummaryChange).toHaveBeenCalledTimes(1);
+
+    // Re-render with fresh empty array literal and fresh inline callback
+    for (let i = 0; i < 5; i++) {
+      rerender(
+        <AttendanceRoster
+          students={[]}
+          date="2026-11-23"
+          classNameDisplay="Grade 10 A"
+          readOnly={false}
+          onSummaryChange={(s) => onSummaryChange(s)}
+        />
+      );
+    }
+
+    expect(onSummaryChange).toHaveBeenCalledTimes(1);
+    expect(screen.getByText('No students enrolled in this class roster.')).toBeInTheDocument();
+  });
 });

@@ -39,6 +39,8 @@ import {
   GRADE_LEVEL_LABELS,
   composeClassName,
   DEPARTMENT_TONES,
+  extractActiveClasses,
+  sortClassesSerially,
 } from '@/features/classes/constants';
 import type { ClassRecord } from '@/features/classes/types';
 import {
@@ -101,14 +103,7 @@ export function TeachersView() {
   }, [rawTeachers]);
 
   const classes: ClassRecord[] = useMemo(() => {
-    if (Array.isArray(rawClasses)) return rawClasses;
-    if (rawClasses && typeof rawClasses === 'object') {
-      const anyData = rawClasses as { data?: unknown; classes?: unknown; items?: unknown };
-      if (Array.isArray(anyData.data)) return anyData.data as ClassRecord[];
-      if (Array.isArray(anyData.classes)) return anyData.classes as ClassRecord[];
-      if (Array.isArray(anyData.items)) return anyData.items as ClassRecord[];
-    }
-    return [];
+    return sortClassesSerially(extractActiveClasses<ClassRecord>(rawClasses));
   }, [rawClasses]);
 
   // Sync invitation statuses with actual backend teachers and classes
@@ -705,6 +700,7 @@ export function TeachersView() {
       <TeacherDetailModal
         teacher={detailTeacher}
         invitations={invitations}
+        classes={classes}
         onClose={() => setDetailTeacher(null)}
         onToggleStatus={handleToggleStatus}
         onAssignFormTeacher={(t) => {

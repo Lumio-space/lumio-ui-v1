@@ -157,4 +157,163 @@ describe('MyClassesView - Class Assignment Isolation & Drill-Down', () => {
     // Form teacher should see Message Parent button
     expect(screen.getByRole('button', { name: /message parent/i })).toBeInTheDocument();
   });
+
+  it('displays formTeacherName instead of raw formTeacher UUID in class drill-down', async () => {
+    vi.spyOn(classesApi, 'fetchClasses').mockResolvedValue([
+      {
+        id: 'cls-uuid',
+        grade: 'Primary 1',
+        section: 'A',
+        level: 'primary',
+        schoolId: 'school-1',
+        formTeacher: '123e4567-e89b-12d3-a456-426614174000',
+        formTeacherName: 'Mrs. Chidinma Eze',
+        capacity: 30,
+        room: 101,
+        students: 20,
+        createdAt: '2026-01-01T00:00:00.000Z',
+      },
+    ]);
+    useAuthStore.setState({
+      user: {
+        id: '123e4567-e89b-12d3-a456-426614174000',
+        name: 'Mrs. Chidinma Eze',
+        email: 'chidinma@school.edu',
+        role: 'teacher',
+        classId: 'cls-uuid',
+      },
+      isAuthenticated: true,
+      role: 'teacher',
+    });
+
+    renderWithProviders(<MyClassesView />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Primary 1 A/i)).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByText(/Primary 1 A/i));
+
+    expect(screen.getByText('Mrs. Chidinma Eze')).toBeInTheDocument();
+    expect(
+      screen.queryByText('123e4567-e89b-12d3-a456-426614174000')
+    ).not.toBeInTheDocument();
+  });
+
+  it('surfaces API error instead of showing empty state when loading classes fails', async () => {
+    vi.spyOn(classesApi, 'fetchClasses').mockRejectedValue(
+      new Error('Internal server error')
+    );
+
+    renderWithProviders(<MyClassesView />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/failed to load classes/i)).toBeInTheDocument();
+    });
+
+    expect(screen.queryByText(/No classes assigned yet/i)).not.toBeInTheDocument();
+  });
+
+  it('sorts assigned teaching classes deterministically (level, grade, department, arm) and excludes deleted classes', async () => {
+    vi.spyOn(classesApi, 'fetchClasses').mockResolvedValue([
+      {
+        id: 'cls-sss1',
+        grade: 'SSS1',
+        section: 'A',
+        level: 'senior_secondary',
+        department: 'Science',
+        schoolId: 'school-1',
+        formTeacher: 'teacher-1',
+        capacity: 30,
+        room: 301,
+        createdAt: '2026-01-01T00:00:00.000Z',
+      },
+      {
+        id: 'cls-jss2a',
+        grade: 'JSS2',
+        section: 'A',
+        level: 'junior_secondary',
+        schoolId: 'school-1',
+        formTeacher: 'teacher-1',
+        capacity: 30,
+        room: 201,
+        createdAt: '2026-01-01T00:00:00.000Z',
+      },
+      {
+        id: 'cls-jss1b',
+        grade: 'JSS1',
+        section: 'B',
+        level: 'junior_secondary',
+        schoolId: 'school-1',
+        formTeacher: 'teacher-1',
+        capacity: 30,
+        room: 102,
+        createdAt: '2026-01-01T00:00:00.000Z',
+      },
+      {
+        id: 'cls-jss1a',
+        grade: 'JSS1',
+        section: 'A',
+        level: 'junior_secondary',
+        schoolId: 'school-1',
+        formTeacher: 'teacher-1',
+        capacity: 30,
+        room: 101,
+        createdAt: '2026-01-01T00:00:00.000Z',
+      },
+    ]);
+
+    useAuthStore.setState({
+      user: {
+        id: 'teacher-1',
+        name: 'Teacher One',
+        email: 'teacher1@school.edu',
+        role: 'teacher',
+      },
+      isAuthenticated: true,
+      role: 'teacher',
+    });
+
+    renderWithProviders(<MyClassesView />);
+
+    await waitFor(() => {
+      expect(screen.getByText('JSS 1 A')).toBeInTheDocument();
+    });
+
+    const orderedLabels = screen
+      .getAllByText(/^(JSS|SSS) /i)
+      .map((el) => el.textContent);
+    expect(orderedLabels).toEqual([
+      'JSS 1 A',
+      'JSS 1 B',
+      'JSS 2 A',
+      'SSS 1 Science A',
+    ]);
+  });
+
+  it('displays clear permission-restricted state on 403 instead of fake empty state', async () => {
+    const forbiddenErr = Object.assign(new Error('Insufficient permissions'), {
+      status: 403,
+      response: { status: 403 },
+    });
+    vi.spyOn(classesApi, 'fetchClasses').mockRejectedValue(forbiddenErr);
+
+    useAuthStore.setState({
+      user: {
+        id: 'teacher-1',
+        name: 'Teacher One',
+        email: 'teacher1@school.edu',
+        role: 'teacher',
+      },
+      isAuthenticated: true,
+      role: 'teacher',
+    });
+
+    renderWithProviders(<MyClassesView />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Teaching Classes Unavailable')).toBeInTheDocument();
+    });
+    expect(screen.queryByText(/no classes assigned yet/i)).not.toBeInTheDocument();
+  });
 });

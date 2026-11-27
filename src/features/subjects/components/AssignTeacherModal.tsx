@@ -124,7 +124,9 @@ export function AssignTeacherModal({
   }
 
   const currentTeacherId = offering.teacherIds[0] ?? null;
+  const isRemovalAttempt = currentTeacherId !== null && picked === null;
   const changed = currentTeacherId !== picked;
+  const canSave = Boolean(picked) && changed && !isSaving;
 
   return (
     <Modal
@@ -141,13 +143,13 @@ export function AssignTeacherModal({
           <Button
             onClick={handleSave}
             loading={isSaving}
-            disabled={!changed || isSaving}
+            disabled={!canSave}
           >
             {isSaving
               ? 'Saving…'
-              : picked
-              ? 'Assign teacher'
-              : 'Remove teacher'}
+              : isRemovalAttempt
+              ? 'Removal unavailable'
+              : 'Assign teacher'}
           </Button>
         </>
       }
@@ -160,6 +162,19 @@ export function AssignTeacherModal({
         >
           <AlertCircleIcon className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
           <span>{errorMessage}</span>
+        </div>
+      )}
+
+      {/* Backend Deassignment Limitation Notice */}
+      {isRemovalAttempt && (
+        <div
+          role="note"
+          className="mb-4 flex items-start gap-2.5 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800"
+        >
+          <InfoIcon className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" aria-hidden="true" />
+          <span>
+            Removing an assigned teacher from a subject offering is not currently supported by the backend API. You can select another teacher to reassign this class offering.
+          </span>
         </div>
       )}
 

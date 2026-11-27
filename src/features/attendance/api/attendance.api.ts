@@ -36,16 +36,26 @@ export async function fetchClassAttendance(
     remarks: s.remarks,
   }));
 
+  const computedSummary = {
+    present: students.filter((s) => s.status === 'present').length,
+    absent: students.filter((s) => s.status === 'absent').length,
+    late: students.filter((s) => s.status === 'late').length,
+    excused: students.filter((s) => s.status === 'excused').length,
+    total: students.length,
+  };
+
   return {
     classId: data?.classId || classId,
     date: data?.date || date,
-    summary: data?.summary || {
-      present: students.filter((s) => s.status === 'present').length,
-      absent: students.filter((s) => s.status === 'absent').length,
-      late: students.filter((s) => s.status === 'late').length,
-      excused: students.filter((s) => s.status === 'excused').length,
-      total: students.length,
-    },
+    summary: data?.summary
+      ? {
+          present: data.summary.present ?? computedSummary.present,
+          absent: data.summary.absent ?? computedSummary.absent,
+          late: data.summary.late ?? computedSummary.late,
+          excused: data.summary.excused ?? computedSummary.excused,
+          total: data.summary.total ?? data?.total ?? computedSummary.total,
+        }
+      : computedSummary,
     students,
   };
 }
